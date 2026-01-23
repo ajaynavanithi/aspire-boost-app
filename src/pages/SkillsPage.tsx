@@ -60,12 +60,12 @@ export const SkillsPage: React.FC = () => {
     }
   };
 
-  const groupedGaps = skillGaps.reduce((acc, gap) => {
+  const groupedGaps = skillGaps.reduce<Record<string, typeof skillGaps>>((acc, gap) => {
     const category = gap.category || 'other';
     if (!acc[category]) acc[category] = [];
     acc[category].push(gap);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {});
 
   if (loading) {
     return (
@@ -157,27 +157,30 @@ export const SkillsPage: React.FC = () => {
                           <SkillBadge skill="Missing" variant="missing" size="sm" />
                         </div>
 
-                        {Array.isArray(gap.learning_resources) && gap.learning_resources.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-border/50">
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                              Learning Resources
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {(gap.learning_resources as string[]).map((resource: string, i: number) => (
-                                <a
-                                  key={i}
-                                  href={resource}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  Resource {i + 1}
-                                </a>
-                              ))}
+                        {(() => {
+                          const resources = gap.learning_resources as string[] | null;
+                          return resources && resources.length > 0 ? (
+                            <div className="mt-3 pt-3 border-t border-border/50">
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                                Learning Resources
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {resources.map((resource: string, i: number) => (
+                                  <a
+                                    key={i}
+                                    href={resource}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Resource {i + 1}
+                                  </a>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          ) : null;
+                        })()}
                       </div>
                     ))}
                   </div>
