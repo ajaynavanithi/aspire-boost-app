@@ -7,13 +7,15 @@ import {
   FileSearch, 
   Briefcase, 
   Target, 
-  MessageSquare 
+  MessageSquare,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Upload, label: 'Upload Resume', path: '/upload' },
+  { icon: History, label: 'Resume History', path: '/history' },
   { icon: FileSearch, label: 'Analysis Results', path: '/analysis' },
   { icon: Briefcase, label: 'Job Recommendations', path: '/jobs' },
   { icon: Target, label: 'Skill Gap', path: '/skills' },
