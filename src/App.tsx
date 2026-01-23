@@ -13,6 +13,7 @@ import AnalysisPage from "./pages/AnalysisPage";
 import JobsPage from "./pages/JobsPage";
 import SkillsPage from "./pages/SkillsPage";
 import InterviewPage from "./pages/InterviewPage";
+import HistoryPage from "./pages/HistoryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/upload" element={<ProtectedRoute><UploadPage /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
             <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute><JobsPage /></ProtectedRoute>} />
             <Route path="/skills" element={<ProtectedRoute><SkillsPage /></ProtectedRoute>} />
