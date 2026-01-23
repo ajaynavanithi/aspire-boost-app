@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { ScoreCircle } from '@/components/ui/score-circle';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { SkillBadge } from '@/components/ui/skill-badge';
+import { SkillDistributionChart } from '@/components/charts/SkillDistributionChart';
+import { JobMatchChart } from '@/components/charts/JobMatchChart';
+import { ScoreTrendChart } from '@/components/charts/ScoreTrendChart';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserResumes } from '@/lib/supabase';
 import { 
@@ -15,7 +18,9 @@ import {
   MessageSquare,
   ArrowRight,
   Loader2,
-  Sparkles
+  Sparkles,
+  TrendingUp,
+  PieChart
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -163,6 +168,59 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">Practice questions</p>
               </div>
+            </div>
+
+            {/* Charts Section */}
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Skill Distribution */}
+              <div className="bg-card rounded-2xl border border-border p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <PieChart className="w-5 h-5 text-accent" />
+                  </div>
+                  <h3 className="font-display text-xl font-semibold text-foreground">
+                    Skill Distribution
+                  </h3>
+                </div>
+                <SkillDistributionChart 
+                  skills={(latestAnalysis.analysis?.extracted_skills as string[]) || []}
+                  skillGaps={latestAnalysis.skills || []}
+                />
+              </div>
+
+              {/* Job Match Chart */}
+              <div className="bg-card rounded-2xl border border-border p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+                      <Briefcase className="w-5 h-5 text-success" />
+                    </div>
+                    <h3 className="font-display text-xl font-semibold text-foreground">
+                      Job Match Scores
+                    </h3>
+                  </div>
+                  <Link to="/jobs" className="text-sm text-primary hover:underline flex items-center gap-1">
+                    View All <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+                <JobMatchChart jobs={latestAnalysis.jobs || []} />
+              </div>
+            </div>
+
+            {/* Score Trend */}
+            <div className="bg-card rounded-2xl border border-border p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-display text-xl font-semibold text-foreground">
+                    ATS Score Trend
+                  </h3>
+                  <p className="text-sm text-muted-foreground">Track your progress over time</p>
+                </div>
+              </div>
+              <ScoreTrendChart resumes={resumes} />
             </div>
 
             {/* Main Content Grid */}
