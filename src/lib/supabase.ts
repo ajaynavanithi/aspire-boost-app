@@ -206,3 +206,46 @@ export const getResumeById = async (resumeId: string) => {
   if (error) throw error;
   return data;
 };
+
+// Trigger a refresh of job recommendations using real-time web scraping
+export const refreshJobRecommendations = async (resumeId: string, userId: string, skills: string[]) => {
+  const { data, error } = await supabase.functions.invoke('scrape-jobs', {
+    body: { skills, resumeId, userId }
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// Subscribe to real-time job updates
+export const subscribeToJobUpdates = (
+  resumeId: string, 
+  callback: (jobs: any[]) => void
+) => {
+  const channel = supabase
+    .channel(`jobs-${resumeId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'job_recommendations',
+        filter: `resume_id=eq.${resumeId}`,
+      },
+      async () => {
+        // Fetch updated jobs
+        const { data } = await supabase
+          .from('job_recommendations')
+          .select('*')
+          .eq('resume_id', resumeId)
+          .order('match_percentage', { ascending: false });
+        
+        if (data) callback(data);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};

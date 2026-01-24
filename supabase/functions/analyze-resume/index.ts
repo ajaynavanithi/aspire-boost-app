@@ -6,29 +6,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Extract text from PDF using basic parsing
+// Enhanced text extraction with better PDF parsing
 async function extractTextFromPDF(pdfBytes: Uint8Array): Promise<string> {
   try {
-    // Convert to string and look for text content between stream markers
     const text = new TextDecoder('latin1').decode(pdfBytes);
-    
-    // Extract text from PDF streams (basic extraction)
     const textContent: string[] = [];
     
-    // Look for text between BT (Begin Text) and ET (End Text) markers
+    // Extract from BT/ET blocks
     const btEtRegex = /BT\s*([\s\S]*?)\s*ET/g;
     let match;
     
     while ((match = btEtRegex.exec(text)) !== null) {
       const block = match[1];
-      // Extract text from Tj and TJ operators
       const tjRegex = /\(([^)]*)\)\s*Tj/g;
       let tjMatch;
       while ((tjMatch = tjRegex.exec(block)) !== null) {
         textContent.push(tjMatch[1]);
       }
       
-      // Extract from TJ arrays
       const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
       let tjArrayMatch;
       while ((tjArrayMatch = tjArrayRegex.exec(block)) !== null) {
@@ -41,13 +36,27 @@ async function extractTextFromPDF(pdfBytes: Uint8Array): Promise<string> {
       }
     }
     
-    // Also try to extract plain text patterns
-    const plainTextRegex = /[A-Za-z][A-Za-z\s,.\-@0-9]{20,}/g;
+    // Extract plain text patterns (emails, skills, dates, etc.)
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const phoneRegex = /[\+]?[(]?[0-9]{1,3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/g;
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/g;
+    
+    const emails = text.match(emailRegex) || [];
+    const phones = text.match(phoneRegex) || [];
+    const urls = text.match(urlRegex) || [];
+    
+    // Extract readable text segments
+    const plainTextRegex = /[A-Za-z][A-Za-z\s,.\-@0-9]{15,}/g;
     const plainMatches = text.match(plainTextRegex) || [];
     
-    const extractedText = textContent.join(' ') + ' ' + plainMatches.join(' ');
+    const extractedText = [
+      ...textContent,
+      ...emails,
+      ...phones,
+      ...urls,
+      ...plainMatches
+    ].join(' ');
     
-    // Clean up the text
     return extractedText
       .replace(/\\n/g, '\n')
       .replace(/\\r/g, '')
@@ -59,20 +68,24 @@ async function extractTextFromPDF(pdfBytes: Uint8Array): Promise<string> {
   }
 }
 
-// Extract text from DOCX (simplified - looks for text in XML)
+// Enhanced DOCX extraction
 async function extractTextFromDOCX(docxBytes: Uint8Array): Promise<string> {
   try {
-    // DOCX is a ZIP file, we'll look for readable text patterns
     const text = new TextDecoder('utf-8', { fatal: false }).decode(docxBytes);
-    
-    // Extract text from XML tags
     const textContent: string[] = [];
-    const xmlTextRegex = />([^<]{3,})</g;
-    let match;
     
+    // Extract from w:t tags (Word text elements)
+    const wtRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
+    let match;
+    while ((match = wtRegex.exec(text)) !== null) {
+      if (match[1].trim()) textContent.push(match[1]);
+    }
+    
+    // Extract from general XML tags
+    const xmlTextRegex = />([^<]{3,})</g;
     while ((match = xmlTextRegex.exec(text)) !== null) {
       const content = match[1].trim();
-      if (content && !/^[\s\d\-_.]+$/.test(content)) {
+      if (content && !/^[\s\d\-_.]+$/.test(content) && !content.startsWith('w:') && !content.includes('xmlns')) {
         textContent.push(content);
       }
     }
@@ -82,6 +95,91 @@ async function extractTextFromDOCX(docxBytes: Uint8Array): Promise<string> {
     console.error('DOCX extraction error:', error);
     return '';
   }
+}
+
+// Use AI for advanced NLP entity extraction
+async function performNLPExtraction(rawText: string, apiKey: string): Promise<any> {
+  const nlpPrompt = `Perform NLP entity extraction on this resume text. Extract structured information with high accuracy.
+
+RESUME TEXT:
+${rawText}
+
+Extract and return JSON with these entities:
+{
+  "personalInfo": {
+    "name": "full name if found",
+    "email": "email address",
+    "phone": "phone number",
+    "location": "city, state/country",
+    "linkedin": "linkedin url",
+    "github": "github url",
+    "portfolio": "portfolio/website url"
+  },
+  "professionalSummary": "brief career summary if present",
+  "skills": {
+    "technical": ["programming languages, frameworks, databases, etc."],
+    "tools": ["software tools, IDEs, platforms"],
+    "softSkills": ["communication, leadership, etc."],
+    "certifications": ["AWS, Google, Microsoft certifications, etc."]
+  },
+  "experience": [
+    {
+      "title": "job title",
+      "company": "company name",
+      "location": "job location",
+      "startDate": "start date",
+      "endDate": "end date or Present",
+      "responsibilities": ["key responsibilities/achievements"],
+      "technologies": ["technologies used in this role"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "degree type and field",
+      "institution": "school/university name",
+      "graduationDate": "graduation year",
+      "gpa": "GPA if mentioned",
+      "achievements": ["honors, relevant coursework"]
+    }
+  ],
+  "projects": [
+    {
+      "name": "project name",
+      "description": "what the project does",
+      "technologies": ["tech stack used"],
+      "url": "project URL if available"
+    }
+  ],
+  "languages": ["spoken languages with proficiency"],
+  "rawSkillsList": ["ALL skills mentioned in any form - exhaustive list"]
+}
+
+Be thorough - extract EVERY skill, technology, and qualification mentioned. Include abbreviations and full forms.`;
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: "You are an expert NLP system for resume parsing. Extract all entities accurately. Return only valid JSON." },
+        { role: "user", content: nlpPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`NLP extraction failed: ${response.status}`);
+  }
+
+  const result = await response.json();
+  let text = result.choices?.[0]?.message?.content || "{}";
+  text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  
+  return JSON.parse(text);
 }
 
 serve(async (req) => {
@@ -101,7 +199,10 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Download the resume file from storage
+    // Update status to processing
+    await supabase.from("resumes").update({ status: "processing" }).eq("id", resumeId);
+
+    // Download and extract resume text
     let resumeText = '';
     
     if (filePath) {
@@ -124,75 +225,78 @@ serve(async (req) => {
       } else if (fileNameLower.endsWith('.docx') || fileNameLower.endsWith('.doc')) {
         resumeText = await extractTextFromDOCX(fileBytes);
       } else {
-        // Try plain text
         resumeText = new TextDecoder('utf-8').decode(fileBytes);
       }
       
       console.log('Extracted text length:', resumeText.length);
     }
 
-    // If extraction failed or returned very little text, use filename hints
     if (resumeText.length < 50) {
-      console.log('Text extraction returned minimal content, using filename as context');
-      resumeText = `Resume file: ${fileName}. Please analyze based on typical resume structure and provide comprehensive feedback.`;
+      console.log('Text extraction returned minimal content');
+      resumeText = `Resume file: ${fileName}. Limited text extraction available.`;
     }
 
-    // Truncate if too long (keep first 8000 chars for context limits)
-    if (resumeText.length > 8000) {
-      resumeText = resumeText.substring(0, 8000);
+    // Truncate for context limits
+    const truncatedText = resumeText.length > 12000 ? resumeText.substring(0, 12000) : resumeText;
+
+    // Step 1: NLP Entity Extraction
+    console.log('Performing NLP entity extraction...');
+    let nlpData;
+    try {
+      nlpData = await performNLPExtraction(truncatedText, LOVABLE_API_KEY);
+      console.log('NLP extraction successful');
+    } catch (nlpError) {
+      console.error('NLP extraction failed:', nlpError);
+      nlpData = { rawSkillsList: [], skills: { technical: [], tools: [], softSkills: [] }, experience: [], education: [] };
     }
 
-    // AI Analysis prompt with actual resume content
-    const analysisPrompt = `Analyze the following resume content and provide a detailed JSON response:
+    // Combine all skills from NLP extraction
+    const allSkills = [
+      ...(nlpData.rawSkillsList || []),
+      ...(nlpData.skills?.technical || []),
+      ...(nlpData.skills?.tools || []),
+      ...(nlpData.skills?.softSkills || []),
+      ...(nlpData.skills?.certifications || []),
+    ].filter((s, i, arr) => s && arr.indexOf(s) === i);
 
-RESUME CONTENT:
-${resumeText}
+    console.log('Extracted skills:', allSkills.length);
 
-Provide a JSON response with this exact structure:
+    // Step 2: Comprehensive Resume Analysis
+    const analysisPrompt = `Analyze this resume data and provide career guidance:
+
+EXTRACTED NLP DATA:
+${JSON.stringify(nlpData, null, 2)}
+
+RAW RESUME TEXT (for additional context):
+${truncatedText.substring(0, 4000)}
+
+Provide JSON response:
 {
-  "atsScore": number (0-100, based on formatting, keywords, structure),
-  "skills": ["extracted skill 1", "skill 2", ...] (extract ALL skills mentioned),
-  "education": [{"degree": "...", "institution": "..."}] (extract education details),
-  "experience": [{"title": "job title", "company": "company name"}] (extract work experience),
-  "projects": ["project name 1", "project 2"] (extract any projects mentioned),
-  "certifications": ["cert1", "cert2"] (extract certifications),
-  "strengths": ["strength1", "strength2"] (identify 3-5 resume strengths),
-  "weaknesses": ["weakness1", "weakness2"] (identify 3-5 areas to improve),
-  "missingKeywords": ["keyword1", "keyword2"] (suggest important missing keywords),
-  "improvementTips": ["tip1", "tip2"] (provide 5 actionable improvement tips),
-  "jobRecommendations": [
-    {
-      "jobTitle": "relevant job title",
-      "companyType": "startup/enterprise/agency/etc",
-      "matchPercentage": number (50-100),
-      "matchedSkills": ["skill1", "skill2"],
-      "requiredSkills": ["missing skill"],
-      "jobDescription": "brief description",
-      "salaryRange": "$XX,XXX - $XXX,XXX"
-    }
-  ] (provide 5 job recommendations based on the resume),
+  "atsScore": number (0-100, based on formatting, keywords, completeness),
+  "strengths": ["3-5 resume strengths based on actual content"],
+  "weaknesses": ["3-5 areas for improvement"],
+  "missingKeywords": ["important keywords missing for their target roles"],
+  "improvementTips": ["5 specific, actionable tips"],
   "skillGaps": [
     {
-      "skillName": "missing skill",
+      "skillName": "missing but important skill",
       "category": "technical|soft_skills|tools_frameworks",
       "importance": "high|medium|low",
-      "learningResources": ["https://resource1.com", "https://resource2.com"]
+      "learningResources": ["url1", "url2"]
     }
-  ] (identify 5 skill gaps based on job market),
+  ],
   "interviewQuestions": [
     {
-      "jobRole": "relevant role",
+      "jobRole": "role this applies to",
       "question": "interview question",
       "category": "technical|hr|coding_scenario",
       "difficulty": "beginner|intermediate|advanced",
-      "suggestedAnswer": "how to approach this question"
+      "suggestedAnswer": "approach to answer"
     }
-  ] (provide 10 interview questions tailored to this resume)
-}
+  ]
+}`;
 
-IMPORTANT: Base your analysis on the ACTUAL content extracted from the resume. Extract real skills, education, and experience mentioned in the text.`;
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -201,25 +305,20 @@ IMPORTANT: Base your analysis on the ACTUAL content extracted from the resume. E
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "You are a professional resume analyzer and career coach. Analyze resumes accurately and provide honest, helpful feedback. Return only valid JSON." },
+          { role: "system", content: "You are an expert career coach and resume analyzer. Provide honest, helpful feedback based on actual resume content. Return only valid JSON." },
           { role: "user", content: analysisPrompt },
         ],
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
+    if (!analysisResponse.ok) {
+      const errorText = await analysisResponse.text();
+      console.error("AI analysis error:", analysisResponse.status, errorText);
       
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
+      if (analysisResponse.status === 429) {
+        await supabase.from("resumes").update({ status: "failed" }).eq("id", resumeId);
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again." }), {
           status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }), {
-          status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -227,51 +326,33 @@ IMPORTANT: Base your analysis on the ACTUAL content extracted from the resume. E
       throw new Error("AI analysis failed");
     }
 
-    const aiResult = await response.json();
-    let analysisText = aiResult.choices?.[0]?.message?.content || "";
-    
-    // Clean up JSON from markdown code blocks
+    const analysisResult = await analysisResponse.json();
+    let analysisText = analysisResult.choices?.[0]?.message?.content || "";
     analysisText = analysisText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     
     let analysis;
     try {
       analysis = JSON.parse(analysisText);
     } catch (e) {
-      console.error("Failed to parse AI response:", analysisText);
+      console.error("Failed to parse analysis:", analysisText);
       throw new Error("Failed to parse analysis results");
     }
 
-    // Save resume analysis
+    // Save resume analysis with NLP-extracted data
     await supabase.from("resume_analysis").insert({
       resume_id: resumeId,
       user_id: userId,
-      ats_score: analysis.atsScore,
-      extracted_skills: analysis.skills,
-      education: analysis.education,
-      experience: analysis.experience,
-      projects: analysis.projects,
-      certifications: analysis.certifications,
-      strengths: analysis.strengths,
-      weaknesses: analysis.weaknesses,
-      missing_keywords: analysis.missingKeywords,
-      improvement_tips: analysis.improvementTips,
+      ats_score: analysis.atsScore || 65,
+      extracted_skills: allSkills,
+      education: nlpData.education || [],
+      experience: nlpData.experience || [],
+      projects: nlpData.projects || [],
+      certifications: nlpData.skills?.certifications || [],
+      strengths: analysis.strengths || [],
+      weaknesses: analysis.weaknesses || [],
+      missing_keywords: analysis.missingKeywords || [],
+      improvement_tips: analysis.improvementTips || [],
     });
-
-    // Save job recommendations
-    if (analysis.jobRecommendations?.length > 0) {
-      const jobRecords = analysis.jobRecommendations.map((job: any) => ({
-        resume_id: resumeId,
-        user_id: userId,
-        job_title: job.jobTitle,
-        company_type: job.companyType,
-        match_percentage: job.matchPercentage,
-        matched_skills: job.matchedSkills,
-        required_skills: job.requiredSkills,
-        job_description: job.jobDescription,
-        salary_range: job.salaryRange,
-      }));
-      await supabase.from("job_recommendations").insert(jobRecords);
-    }
 
     // Save skill gaps
     if (analysis.skillGaps?.length > 0) {
@@ -279,9 +360,9 @@ IMPORTANT: Base your analysis on the ACTUAL content extracted from the resume. E
         resume_id: resumeId,
         user_id: userId,
         skill_name: gap.skillName,
-        category: gap.category,
-        importance: gap.importance,
-        learning_resources: gap.learningResources,
+        category: gap.category || "technical",
+        importance: gap.importance || "medium",
+        learning_resources: gap.learningResources || [],
       }));
       await supabase.from("skill_gaps").insert(gapRecords);
     }
@@ -291,24 +372,72 @@ IMPORTANT: Base your analysis on the ACTUAL content extracted from the resume. E
       const questionRecords = analysis.interviewQuestions.map((q: any) => ({
         resume_id: resumeId,
         user_id: userId,
-        job_role: q.jobRole,
+        job_role: q.jobRole || "General",
         question: q.question,
-        category: q.category,
-        difficulty: q.difficulty,
-        suggested_answer: q.suggestedAnswer,
+        category: q.category || "technical",
+        difficulty: q.difficulty || "intermediate",
+        suggested_answer: q.suggestedAnswer || "",
       }));
       await supabase.from("interview_questions").insert(questionRecords);
     }
 
-    // Update resume record with extracted text
-    await supabase.from("resumes").update({ raw_text: resumeText.substring(0, 5000) }).eq('id', resumeId);
+    // Update resume with raw text
+    await supabase.from("resumes").update({ 
+      raw_text: truncatedText.substring(0, 5000),
+      status: "completed"
+    }).eq('id', resumeId);
 
-    return new Response(JSON.stringify({ success: true, analysis }), {
+    // Step 3: Trigger real-time job scraping (async)
+    console.log('Triggering real-time job scraping with skills:', allSkills.slice(0, 10));
+    
+    try {
+      const scrapeResponse = await fetch(`${supabaseUrl}/functions/v1/scrape-jobs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
+          skills: allSkills.slice(0, 10),
+          resumeId,
+          userId,
+        }),
+      });
+      
+      if (scrapeResponse.ok) {
+        const scrapeResult = await scrapeResponse.json();
+        console.log('Job scraping completed:', scrapeResult.jobs?.length || 0, 'jobs found');
+      } else {
+        console.error('Job scraping failed:', await scrapeResponse.text());
+      }
+    } catch (scrapeError) {
+      console.error('Job scraping error:', scrapeError);
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      analysis: {
+        ...analysis,
+        nlpData,
+        extractedSkills: allSkills,
+      }
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (error) {
     console.error("Error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+    
+    // Try to update status to failed
+    try {
+      const { resumeId } = await req.clone().json();
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      await supabase.from("resumes").update({ status: "failed" }).eq("id", resumeId);
+    } catch {}
+    
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
