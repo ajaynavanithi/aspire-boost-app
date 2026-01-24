@@ -191,11 +191,16 @@ export const JobsPage: React.FC = () => {
                       />
                     </div>
 
-                    {/* Description */}
+                    {/* Full Description */}
                     {job.job_description && (
-                      <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
-                        {job.job_description}
-                      </p>
+                      <div className="mb-4">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                          Job Description
+                        </p>
+                        <p className="text-muted-foreground text-sm whitespace-pre-line">
+                          {job.job_description}
+                        </p>
+                      </div>
                     )}
 
                     {/* Skills */}
