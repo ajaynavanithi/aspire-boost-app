@@ -1,1 +1,7 @@
 project_id = "udyxuzvnzdzlmlxupynq"
+
+[functions.analyze-resume]
+verify_jwt = false
+
+[functions.scrape-jobs]
+verify_jwt = false
