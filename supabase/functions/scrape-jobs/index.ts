@@ -44,19 +44,20 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Create search queries from top skills
+    // Create search queries from top skills - India focused
     const topSkills = skills.slice(0, 5).join(" ");
     const searchQueries = [
-      `${topSkills} jobs remote`,
-      `${skills[0]} developer jobs 2024`,
-      `${skills.slice(0, 3).join(" ")} engineer positions`,
+      `${topSkills} jobs India Bangalore Mumbai Delhi`,
+      `${skills[0]} developer jobs India 2024`,
+      `${skills.slice(0, 3).join(" ")} engineer India remote`,
+      `${topSkills} jobs Hyderabad Chennai Pune`,
     ];
 
-    console.log("Searching for jobs with skills:", topSkills);
+    console.log("Searching for India jobs with skills:", topSkills);
 
     const allJobResults: JobResult[] = [];
 
-    // Search multiple job sources using Firecrawl
+    // Search multiple job sources using Firecrawl - India focused
     for (const query of searchQueries) {
       try {
         console.log("Searching:", query);
@@ -68,8 +69,9 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            query: query + " site:linkedin.com/jobs OR site:indeed.com OR site:glassdoor.com",
+            query: query + " site:linkedin.com/jobs OR site:indeed.co.in OR site:naukri.com OR site:glassdoor.co.in",
             limit: 5,
+            country: "IN",
             scrapeOptions: {
               formats: ["markdown"],
             },
@@ -88,11 +90,14 @@ serve(async (req) => {
               );
               const matchPercentage = Math.min(95, Math.round((matchedSkills.length / skills.length) * 100) + 40);
 
+              // Keep full description (up to 2000 chars for database)
+              const fullDescription = (result.markdown || result.description || "").substring(0, 2000);
+
               allJobResults.push({
                 title: result.title || "Job Opening",
                 company: extractCompany(result.url || result.title || ""),
-                location: "Remote/Hybrid",
-                description: (result.markdown || result.description || "").substring(0, 500),
+                location: extractIndiaLocation(result.markdown || result.description || ""),
+                description: fullDescription,
                 url: result.url || "",
                 matchedSkills: matchedSkills.slice(0, 5),
                 matchPercentage,
@@ -120,14 +125,15 @@ CANDIDATE SKILLS: ${skills.join(", ")}
 RAW JOB RESULTS:
 ${JSON.stringify(sortedJobs, null, 2)}
 
-Return a JSON array with enhanced job recommendations. For each job:
+Return a JSON array with enhanced job recommendations FOR INDIA. For each job:
 1. Clean up the job title
 2. Extract or estimate the company name
 3. Calculate an accurate match percentage based on skill overlap
 4. Identify which candidate skills match the job
 5. Identify required skills the candidate is missing
-6. Provide a brief job description
-7. Estimate salary range based on role and market data
+6. Provide a DETAILED and COMPLETE job description (at least 200 words covering responsibilities, requirements, and benefits)
+7. Estimate salary range in INR (Indian Rupees) based on role and Indian market data
+8. Location MUST be in India (city name like Bangalore, Mumbai, Delhi, Hyderabad, etc.)
 
 Return format:
 [
@@ -135,12 +141,12 @@ Return format:
     "jobTitle": "clean job title",
     "companyType": "startup/enterprise/agency/tech company",
     "companyName": "company name if known",
-    "location": "location or Remote",
+    "location": "City, India",
     "matchPercentage": number (50-95),
     "matchedSkills": ["skill1", "skill2"],
     "requiredSkills": ["missing skill1"],
-    "jobDescription": "brief description",
-    "salaryRange": "$XX,XXX - $XXX,XXX",
+    "jobDescription": "DETAILED job description with responsibilities, requirements, qualifications, and benefits - at least 200 words",
+    "salaryRange": "₹XX,XX,XXX - ₹XX,XX,XXX per annum",
     "applyUrl": "job url"
   }
 ]`;
@@ -224,14 +230,44 @@ Return format:
 });
 
 function extractCompany(text: string): string {
-  // Try to extract company from LinkedIn/Indeed URLs or text
+  // Try to extract company from LinkedIn/Indeed/Naukri URLs or text
   const linkedinMatch = text.match(/linkedin\.com\/company\/([^\/\?]+)/i);
   if (linkedinMatch) return linkedinMatch[1].replace(/-/g, " ");
   
-  const indeedMatch = text.match(/indeed\.com\/cmp\/([^\/\?]+)/i);
+  const indeedMatch = text.match(/indeed\.co\.in\/cmp\/([^\/\?]+)/i);
   if (indeedMatch) return indeedMatch[1].replace(/-/g, " ");
   
+  const naukriMatch = text.match(/naukri\.com\/([^\/\?]+)-jobs/i);
+  if (naukriMatch) return naukriMatch[1].replace(/-/g, " ");
+  
   return "Tech Company";
+}
+
+function extractIndiaLocation(text: string): string {
+  const lowerText = text.toLowerCase();
+  
+  // Major Indian cities
+  const cities = [
+    "Bangalore", "Bengaluru", "Mumbai", "Delhi", "NCR", "Gurgaon", "Gurugram",
+    "Hyderabad", "Chennai", "Pune", "Kolkata", "Noida", "Ahmedabad", "Jaipur",
+    "Kochi", "Thiruvananthapuram", "Coimbatore", "Indore", "Chandigarh"
+  ];
+  
+  for (const city of cities) {
+    if (lowerText.includes(city.toLowerCase())) {
+      return `${city}, India`;
+    }
+  }
+  
+  if (lowerText.includes("remote") && lowerText.includes("india")) {
+    return "Remote, India";
+  }
+  
+  if (lowerText.includes("india")) {
+    return "India";
+  }
+  
+  return "India (Remote/Hybrid)";
 }
 
 function removeDuplicates(jobs: JobResult[]): JobResult[] {
