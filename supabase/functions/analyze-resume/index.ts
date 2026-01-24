@@ -197,7 +197,13 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Create admin client with service role key (bypasses RLS)
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     // Update status to processing
     await supabase.from("resumes").update({ status: "processing" }).eq("id", resumeId);
@@ -206,18 +212,27 @@ serve(async (req) => {
     let resumeText = '';
     
     if (filePath) {
-      console.log('Downloading resume from:', filePath);
+      console.log('Downloading resume from bucket path:', filePath);
       
-      const { data: fileData, error: downloadError } = await supabase.storage
+      // Use createSignedUrl for private bucket access with service role
+      const { data: signedData, error: signedError } = await supabase.storage
         .from('resumes')
-        .download(filePath);
+        .createSignedUrl(filePath, 60); // 60 seconds expiry
 
-      if (downloadError) {
-        console.error('Download error:', downloadError);
+      if (signedError) {
+        console.error('Signed URL error:', signedError);
+        throw new Error('Failed to create signed URL for resume file');
+      }
+
+      console.log('Fetching from signed URL');
+      
+      const fileResponse = await fetch(signedData.signedUrl);
+      if (!fileResponse.ok) {
+        console.error('File fetch failed:', fileResponse.status, fileResponse.statusText);
         throw new Error('Failed to download resume file');
       }
 
-      const fileBytes = new Uint8Array(await fileData.arrayBuffer());
+      const fileBytes = new Uint8Array(await fileResponse.arrayBuffer());
       const fileNameLower = (fileName || '').toLowerCase();
       
       if (fileNameLower.endsWith('.pdf')) {
