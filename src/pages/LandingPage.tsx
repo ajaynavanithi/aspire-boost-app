@@ -1,12 +1,43 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { FileText, ArrowRight, Upload, Target, Briefcase } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { FileText, ArrowRight, Upload, Target, Briefcase, CheckCircle, Zap, Users, TrendingUp } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
+  const features = [
+    {
+      icon: Upload,
+      title: 'Easy Upload',
+      description: 'Simply drag and drop your resume in PDF or DOCX format for instant analysis.'
+    },
+    {
+      icon: Target,
+      title: 'ATS Score',
+      description: 'Get a detailed compatibility score and see how your resume performs against ATS systems.'
+    },
+    {
+      icon: Briefcase,
+      title: 'Job Matches',
+      description: 'Receive personalized job recommendations based on your skills and experience.'
+    },
+    {
+      icon: Zap,
+      title: 'Interview Prep',
+      description: 'Practice with AI-generated interview questions tailored to your target roles.'
+    }
+  ];
+
+  const stats = [
+    { value: '10K+', label: 'Resumes Analyzed' },
+    { value: '95%', label: 'Success Rate' },
+    { value: '500+', label: 'Companies Hiring' },
+    { value: '24/7', label: 'AI Support' }
+  ];
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Simple Navbar */}
+      {/* Navbar */}
       <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
@@ -28,35 +59,19 @@ export const LandingPage: React.FC = () => {
         </div>
       </nav>
 
-      {/* Hero Section - Simplified */}
-      <main className="flex-1 flex items-center justify-center py-12 px-4">
-        <div className="max-w-2xl mx-auto text-center">
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-4">
+      {/* Hero Section */}
+      <section className="py-16 md:py-24 px-4">
+        <div className="container mx-auto max-w-4xl text-center">
+          <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
             Transform Your Resume into{' '}
             <span className="gradient-text">Career Success</span>
           </h1>
           
-          <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
-            Get instant ATS scores, personalized job matches, and AI-powered interview prep.
+          <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Get instant ATS scores, personalized job matches, and AI-powered interview prep to land your dream job.
           </p>
-
-          {/* Key Features - Simple Icons */}
-          <div className="flex flex-wrap justify-center gap-6 mb-8 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Upload className="w-4 h-4 text-primary" />
-              <span>Upload Resume</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" />
-              <span>ATS Score</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-primary" />
-              <span>Job Matches</span>
-            </div>
-          </div>
           
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
             <Link to="/signup">
               <Button variant="hero" size="xl">
                 Get Started Free
@@ -70,14 +85,106 @@ export const LandingPage: React.FC = () => {
             </Link>
           </div>
 
-          <p className="mt-6 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             No credit card required • Free forever
           </p>
         </div>
-      </main>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-12 bg-muted/30">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {stats.map((stat, index) => (
+              <div key={index} className="text-center">
+                <div className="text-3xl md:text-4xl font-bold text-primary mb-1">{stat.value}</div>
+                <div className="text-sm text-muted-foreground">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-16 md:py-24 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-12">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Everything You Need to Succeed
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Our AI-powered platform analyzes your resume and provides actionable insights to help you stand out.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, index) => (
+              <Card key={index} className="border-border/50 hover:border-primary/50 transition-colors">
+                <CardContent className="p-6">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <feature.icon className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className="py-16 md:py-24 px-4 bg-muted/30">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-12">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
+              How It Works
+            </h2>
+            <p className="text-muted-foreground">
+              Get started in three simple steps
+            </p>
+          </div>
+
+          <div className="space-y-8">
+            {[
+              { step: '1', title: 'Upload Your Resume', description: 'Upload your resume in PDF or DOCX format. Our AI will analyze it instantly.' },
+              { step: '2', title: 'Get Your Analysis', description: 'Receive a detailed ATS score, skill breakdown, and improvement suggestions.' },
+              { step: '3', title: 'Land Your Dream Job', description: 'Use our job matches and interview prep to ace your applications.' }
+            ].map((item, index) => (
+              <div key={index} className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold shrink-0">
+                  {item.step}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground mb-1">{item.title}</h3>
+                  <p className="text-muted-foreground">{item.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-16 md:py-24 px-4">
+        <div className="container mx-auto max-w-2xl text-center">
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
+            Ready to Get Started?
+          </h2>
+          <p className="text-muted-foreground mb-8">
+            Join thousands of job seekers who have improved their resumes with ResumeAI.
+          </p>
+          <Link to="/signup">
+            <Button variant="hero" size="xl">
+              Start Free Analysis
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+          </Link>
+        </div>
+      </section>
 
       {/* Footer */}
-      <footer className="py-6 border-t border-border">
+      <footer className="py-8 border-t border-border">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           © {new Date().getFullYear()} ResumeAI. All rights reserved.
         </div>
