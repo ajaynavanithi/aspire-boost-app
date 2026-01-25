@@ -6,93 +6,103 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Enhanced text extraction with better PDF parsing
-async function extractTextFromPDF(pdfBytes: Uint8Array): Promise<string> {
+// Use AI to extract text from document bytes
+async function extractTextWithAI(fileBytes: Uint8Array, fileName: string, apiKey: string): Promise<string> {
   try {
-    const text = new TextDecoder('latin1').decode(pdfBytes);
-    const textContent: string[] = [];
-    
-    // Extract from BT/ET blocks
-    const btEtRegex = /BT\s*([\s\S]*?)\s*ET/g;
-    let match;
-    
-    while ((match = btEtRegex.exec(text)) !== null) {
-      const block = match[1];
-      const tjRegex = /\(([^)]*)\)\s*Tj/g;
-      let tjMatch;
-      while ((tjMatch = tjRegex.exec(block)) !== null) {
-        textContent.push(tjMatch[1]);
-      }
-      
-      const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-      let tjArrayMatch;
-      while ((tjArrayMatch = tjArrayRegex.exec(block)) !== null) {
-        const arrayContent = tjArrayMatch[1];
-        const stringRegex = /\(([^)]*)\)/g;
-        let strMatch;
-        while ((strMatch = stringRegex.exec(arrayContent)) !== null) {
-          textContent.push(strMatch[1]);
-        }
-      }
+    // Convert bytes to base64
+    const base64Data = btoa(String.fromCharCode(...fileBytes));
+    const mimeType = fileName.toLowerCase().endsWith('.pdf') 
+      ? 'application/pdf' 
+      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+    console.log('Using AI for document text extraction, size:', fileBytes.length);
+
+    // Use Gemini's document understanding capabilities
+    const extractionPrompt = `Extract ALL text content from this document. 
+Return the complete text exactly as it appears, preserving:
+- All names, emails, phone numbers, and URLs
+- All job titles, company names, and dates
+- All skills, technologies, and certifications
+- All education details and degrees
+- All project names and descriptions
+
+Return ONLY the extracted text, no formatting or JSON.`;
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { 
+            role: "user", 
+            content: [
+              { type: "text", text: extractionPrompt },
+              { 
+                type: "image_url", 
+                image_url: { 
+                  url: `data:${mimeType};base64,${base64Data}` 
+                } 
+              }
+            ]
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('AI text extraction failed:', response.status);
+      return fallbackTextExtraction(fileBytes, fileName);
     }
+
+    const result = await response.json();
+    const extractedText = result.choices?.[0]?.message?.content || '';
     
-    // Extract plain text patterns (emails, skills, dates, etc.)
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    const phoneRegex = /[\+]?[(]?[0-9]{1,3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}/g;
-    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/g;
-    
-    const emails = text.match(emailRegex) || [];
-    const phones = text.match(phoneRegex) || [];
-    const urls = text.match(urlRegex) || [];
-    
-    // Extract readable text segments
-    const plainTextRegex = /[A-Za-z][A-Za-z\s,.\-@0-9]{15,}/g;
-    const plainMatches = text.match(plainTextRegex) || [];
-    
-    const extractedText = [
-      ...textContent,
-      ...emails,
-      ...phones,
-      ...urls,
-      ...plainMatches
-    ].join(' ');
-    
-    return extractedText
-      .replace(/\\n/g, '\n')
-      .replace(/\\r/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    console.log('AI extracted text length:', extractedText.length);
+    return extractedText.trim();
   } catch (error) {
-    console.error('PDF extraction error:', error);
-    return '';
+    console.error('AI extraction error:', error);
+    return fallbackTextExtraction(fileBytes, fileName);
   }
 }
 
-// Enhanced DOCX extraction
-async function extractTextFromDOCX(docxBytes: Uint8Array): Promise<string> {
+// Fallback extraction for when AI fails
+function fallbackTextExtraction(fileBytes: Uint8Array, fileName: string): string {
   try {
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(docxBytes);
-    const textContent: string[] = [];
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(fileBytes);
+    const extractedParts: string[] = [];
     
-    // Extract from w:t tags (Word text elements)
-    const wtRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-    let match;
-    while ((match = wtRegex.exec(text)) !== null) {
-      if (match[1].trim()) textContent.push(match[1]);
+    // Extract emails
+    const emails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    extractedParts.push(...emails);
+    
+    // Extract phone numbers
+    const phones = text.match(/[\+]?[(]?[0-9]{1,3}[)]?[-\s\.]?[0-9]{3,4}[-\s\.]?[0-9]{4,6}/g) || [];
+    extractedParts.push(...phones);
+    
+    // Extract URLs
+    const urls = text.match(/https?:\/\/[^\s<>"{}|\\^`\[\]]+/g) || [];
+    extractedParts.push(...urls);
+    
+    // For DOCX, extract from XML tags
+    if (fileName.toLowerCase().includes('.docx')) {
+      const wtMatches = text.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
+      wtMatches.forEach(m => {
+        const content = m.replace(/<[^>]+>/g, '').trim();
+        if (content.length > 2) extractedParts.push(content);
+      });
     }
     
-    // Extract from general XML tags
-    const xmlTextRegex = />([^<]{3,})</g;
-    while ((match = xmlTextRegex.exec(text)) !== null) {
-      const content = match[1].trim();
-      if (content && !/^[\s\d\-_.]+$/.test(content) && !content.startsWith('w:') && !content.includes('xmlns')) {
-        textContent.push(content);
-      }
-    }
+    // Extract readable text segments
+    const readableText = text.match(/[A-Za-z][A-Za-z\s,.\-'@0-9]{10,100}/g) || [];
+    extractedParts.push(...readableText);
     
-    return textContent.join(' ').replace(/\s+/g, ' ').trim();
+    return [...new Set(extractedParts)].join(' ').replace(/\s+/g, ' ').trim();
   } catch (error) {
-    console.error('DOCX extraction error:', error);
+    console.error('Fallback extraction error:', error);
     return '';
   }
 }
@@ -233,15 +243,8 @@ serve(async (req) => {
       }
 
       const fileBytes = new Uint8Array(await fileResponse.arrayBuffer());
-      const fileNameLower = (fileName || '').toLowerCase();
-      
-      if (fileNameLower.endsWith('.pdf')) {
-        resumeText = await extractTextFromPDF(fileBytes);
-      } else if (fileNameLower.endsWith('.docx') || fileNameLower.endsWith('.doc')) {
-        resumeText = await extractTextFromDOCX(fileBytes);
-      } else {
-        resumeText = new TextDecoder('utf-8').decode(fileBytes);
-      }
+      // Use AI-powered text extraction for accurate results
+      resumeText = await extractTextWithAI(fileBytes, fileName || 'resume.pdf', LOVABLE_API_KEY);
       
       console.log('Extracted text length:', resumeText.length);
     }
