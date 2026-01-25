@@ -309,10 +309,30 @@ Provide JSON response:
       "question": "interview question",
       "category": "technical|hr|coding_scenario",
       "difficulty": "beginner|intermediate|advanced",
-      "suggestedAnswer": "approach to answer"
+      "suggestedAnswer": "detailed approach with example talking points"
     }
   ]
-}`;
+}
+
+CRITICAL INSTRUCTIONS FOR INTERVIEW QUESTIONS:
+- Generate AT LEAST 15-20 interview questions total
+- Make questions HIGHLY SPECIFIC to the candidate's actual skills, projects, and experience mentioned in the resume
+- Include questions about their SPECIFIC projects (e.g., "Tell me about your ${nlpData.projects?.[0]?.name || 'project'} - what challenges did you face?")
+- Include questions about their SPECIFIC technologies (e.g., if they know Python, ask about Python-specific concepts)
+- Include questions about their SPECIFIC experience (e.g., ask about their internship/job role responsibilities)
+
+Question distribution:
+- 5-6 Technical questions (specific to their tech stack: ${allSkills.slice(0, 5).join(', ')})
+- 4-5 HR/Behavioral questions (about teamwork, challenges, career goals)
+- 4-5 Coding/Scenario questions (real-world problems using their skills)
+- 3-4 Project-based questions (about their actual projects mentioned)
+
+Difficulty distribution:
+- 5 beginner questions (fundamentals of their skills)
+- 8-10 intermediate questions (practical application)
+- 3-5 advanced questions (deep concepts, optimization, architecture)
+
+Make suggested answers comprehensive (3-4 sentences with specific talking points).`;
 
     const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
