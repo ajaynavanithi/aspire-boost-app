@@ -9,7 +9,15 @@ const corsHeaders = {
 // Use AI to extract text from document bytes
 async function extractTextWithAI(fileBytes: Uint8Array, fileName: string, apiKey: string): Promise<string> {
   try {
-    // Convert bytes to base64
+    // Check if it's a plain text file - read directly
+    if (fileName.toLowerCase().endsWith('.txt')) {
+      console.log('Processing plain text file directly');
+      const text = new TextDecoder('utf-8').decode(fileBytes);
+      console.log('Plain text extracted, length:', text.length);
+      return text.trim();
+    }
+
+    // Convert bytes to base64 for PDF/DOCX
     const base64Data = btoa(String.fromCharCode(...fileBytes));
     const mimeType = fileName.toLowerCase().endsWith('.pdf') 
       ? 'application/pdf' 

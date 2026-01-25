@@ -23,10 +23,11 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
         'application/pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/msword',
+        'text/plain',
       ];
       
       if (!validTypes.includes(file.type)) {
-        toast.error('Please upload a PDF or Word document');
+        toast.error('Please upload a PDF, Word document, or TXT file');
         return;
       }
 
@@ -45,6 +46,7 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
       'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'application/msword': ['.doc'],
+      'text/plain': ['.txt'],
     },
     maxFiles: 1,
     disabled: isUploading,
@@ -93,7 +95,7 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
               Drag and drop your resume here, or click to browse
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              Supports PDF, DOC, DOCX (Max 10MB)
+              Supports PDF, DOC, DOCX, TXT (Max 10MB)
             </p>
           </div>
         </div>
