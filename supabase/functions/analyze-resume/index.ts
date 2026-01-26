@@ -17,8 +17,14 @@ async function extractTextWithAI(fileBytes: Uint8Array, fileName: string, apiKey
       return text.trim();
     }
 
-    // Convert bytes to base64 for PDF/DOCX
-    const base64Data = btoa(String.fromCharCode(...fileBytes));
+    // Convert bytes to base64 in chunks to avoid stack overflow with large files
+    let binaryString = '';
+    const chunkSize = 8192; // Process 8KB at a time
+    for (let i = 0; i < fileBytes.length; i += chunkSize) {
+      const chunk = fileBytes.slice(i, i + chunkSize);
+      binaryString += String.fromCharCode(...chunk);
+    }
+    const base64Data = btoa(binaryString);
     const mimeType = fileName.toLowerCase().endsWith('.pdf') 
       ? 'application/pdf' 
       : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
