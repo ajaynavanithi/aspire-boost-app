@@ -61,10 +61,6 @@ export const SignupPage: React.FC = () => {
             Create an account and unlock AI-powered resume analysis, job recommendations, and interview preparation.
           </p>
         </div>
-
-        <p className="text-sm text-sidebar-foreground/50">
-          © {new Date().getFullYear()} ResumeAI. All rights reserved.
-        </p>
       </div>
 
       {/* Right Side - Form */}
