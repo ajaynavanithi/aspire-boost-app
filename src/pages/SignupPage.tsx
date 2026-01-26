@@ -83,10 +83,6 @@ export const SignupPage: React.FC = () => {
 
         </div>
 
-        <div className="flex items-center gap-2 text-sidebar-foreground/50 text-sm">
-          <CheckCircle className="w-4 h-4" />
-          <span>Free to get started • No credit card required</span>
-        </div>
       </div>
 
       {/* Right Side - Form */}

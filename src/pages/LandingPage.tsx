@@ -77,10 +77,6 @@ export const LandingPage: React.FC = () => {
               </Button>
             </Link>
           </div>
-
-          <p className="text-sm text-muted-foreground">
-            No credit card required • Free forever
-          </p>
         </div>
       </section>
 
