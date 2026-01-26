@@ -81,21 +81,6 @@ export const SignupPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Testimonial */}
-          <div className="bg-sidebar-accent/30 rounded-2xl p-6 border border-sidebar-border">
-            <p className="text-sidebar-foreground/80 italic mb-4">
-              "ResumeAI helped me land my dream job! The ATS score insights were incredibly valuable."
-            </p>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-sidebar-primary/30 flex items-center justify-center">
-                <User className="w-5 h-5 text-sidebar-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-sidebar-foreground">Sarah M.</p>
-                <p className="text-sm text-sidebar-foreground/60">Software Engineer</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="flex items-center gap-2 text-sidebar-foreground/50 text-sm">
