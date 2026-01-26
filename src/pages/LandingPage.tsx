@@ -28,13 +28,6 @@ export const LandingPage: React.FC = () => {
     }
   ];
 
-  const stats = [
-    { value: '10K+', label: 'Resumes Analyzed' },
-    { value: '95%', label: 'Success Rate' },
-    { value: '500+', label: 'Companies Hiring' },
-    { value: '24/7', label: 'AI Support' }
-  ];
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Navbar */}
@@ -88,20 +81,6 @@ export const LandingPage: React.FC = () => {
           <p className="text-sm text-muted-foreground">
             No credit card required • Free forever
           </p>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-12 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary mb-1">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
