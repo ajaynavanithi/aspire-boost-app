@@ -2,6 +2,17 @@ import { supabase } from "@/integrations/supabase/client";
 
 export { supabase };
 
+// Helper to call the Neon DB edge function
+const neonDb = async (action: string, params: Record<string, any>) => {
+  const { data, error } = await supabase.functions.invoke('neon-db', {
+    body: { action, params }
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data?.data;
+};
+
+// ===== Storage (still uses Lovable Cloud storage) =====
 export const uploadResume = async (file: File, userId: string) => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${userId}/${Date.now()}.${fileExt}`;
@@ -19,35 +30,21 @@ export const uploadResume = async (file: File, userId: string) => {
   return { path: data.path, url: publicUrl };
 };
 
+// ===== Resumes (Neon) =====
 export const createResumeRecord = async (userId: string, fileName: string, fileUrl: string) => {
-  const { data, error } = await supabase
-    .from('resumes')
-    .insert({
-      user_id: userId,
-      file_name: fileName,
-      file_url: fileUrl,
-      status: 'pending'
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  const result = await neonDb('create_resume', {
+    user_id: userId,
+    file_name: fileName,
+    file_url: fileUrl,
+  });
+  return result[0];
 };
 
 export const updateResumeStatus = async (resumeId: string, status: string, rawText?: string) => {
-  const { error } = await supabase
-    .from('resumes')
-    .update({ 
-      status: status as any,
-      raw_text: rawText,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', resumeId);
-
-  if (error) throw error;
+  await neonDb('update_resume_status', { id: resumeId, status, raw_text: rawText });
 };
 
+// ===== Analysis (Neon) =====
 export const saveResumeAnalysis = async (
   resumeId: string,
   userId: string,
@@ -64,29 +61,24 @@ export const saveResumeAnalysis = async (
     improvementTips: string[];
   }
 ) => {
-  const { data, error } = await supabase
-    .from('resume_analysis')
-    .insert({
-      resume_id: resumeId,
-      user_id: userId,
-      ats_score: analysis.atsScore,
-      extracted_skills: analysis.skills,
-      education: analysis.education,
-      experience: analysis.experience,
-      projects: analysis.projects,
-      certifications: analysis.certifications,
-      strengths: analysis.strengths,
-      weaknesses: analysis.weaknesses,
-      missing_keywords: analysis.missingKeywords,
-      improvement_tips: analysis.improvementTips,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  const result = await neonDb('save_analysis', {
+    resume_id: resumeId,
+    user_id: userId,
+    ats_score: analysis.atsScore,
+    extracted_skills: analysis.skills,
+    education: analysis.education,
+    experience: analysis.experience,
+    projects: analysis.projects,
+    certifications: analysis.certifications,
+    strengths: analysis.strengths,
+    weaknesses: analysis.weaknesses,
+    missing_keywords: analysis.missingKeywords,
+    improvement_tips: analysis.improvementTips,
+  });
+  return result[0];
 };
 
+// ===== Job Recommendations (Neon) =====
 export const saveJobRecommendations = async (
   resumeId: string,
   userId: string,
@@ -100,7 +92,7 @@ export const saveJobRecommendations = async (
     salaryRange: string;
   }>
 ) => {
-  const jobRecords = jobs.map(job => ({
+  const records = jobs.map(job => ({
     resume_id: resumeId,
     user_id: userId,
     job_title: job.jobTitle,
@@ -111,14 +103,10 @@ export const saveJobRecommendations = async (
     job_description: job.jobDescription,
     salary_range: job.salaryRange,
   }));
-
-  const { error } = await supabase
-    .from('job_recommendations')
-    .insert(jobRecords);
-
-  if (error) throw error;
+  await neonDb('save_job_recommendations', { records });
 };
 
+// ===== Skill Gaps (Neon) =====
 export const saveSkillGaps = async (
   resumeId: string,
   userId: string,
@@ -129,7 +117,7 @@ export const saveSkillGaps = async (
     learningResources: string[];
   }>
 ) => {
-  const gapRecords = gaps.map(gap => ({
+  const records = gaps.map(gap => ({
     resume_id: resumeId,
     user_id: userId,
     skill_name: gap.skillName,
@@ -137,14 +125,10 @@ export const saveSkillGaps = async (
     importance: gap.importance,
     learning_resources: gap.learningResources,
   }));
-
-  const { error } = await supabase
-    .from('skill_gaps')
-    .insert(gapRecords);
-
-  if (error) throw error;
+  await neonDb('save_skill_gaps', { records });
 };
 
+// ===== Interview Questions (Neon) =====
 export const saveInterviewQuestions = async (
   resumeId: string,
   userId: string,
@@ -156,7 +140,7 @@ export const saveInterviewQuestions = async (
     suggestedAnswer: string;
   }>
 ) => {
-  const questionRecords = questions.map(q => ({
+  const records = questions.map(q => ({
     resume_id: resumeId,
     user_id: userId,
     job_role: q.jobRole,
@@ -165,87 +149,48 @@ export const saveInterviewQuestions = async (
     difficulty: q.difficulty,
     suggested_answer: q.suggestedAnswer,
   }));
-
-  const { error } = await supabase
-    .from('interview_questions')
-    .insert(questionRecords);
-
-  if (error) throw error;
+  await neonDb('save_interview_questions', { records });
 };
 
+// ===== Queries (Neon) =====
 export const getUserResumes = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('resumes')
-    .select(`
-      *,
-      resume_analysis (*),
-      job_recommendations (*),
-      skill_gaps (*),
-      interview_questions (*)
-    `)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data;
+  return await neonDb('get_user_resumes', { user_id: userId });
 };
 
 export const getResumeById = async (resumeId: string) => {
-  const { data, error } = await supabase
-    .from('resumes')
-    .select(`
-      *,
-      resume_analysis (*),
-      job_recommendations (*),
-      skill_gaps (*),
-      interview_questions (*)
-    `)
-    .eq('id', resumeId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+  return await neonDb('get_resume_by_id', { id: resumeId });
 };
 
-// Trigger a refresh of job recommendations using real-time web scraping
+// ===== Job Scraping =====
 export const refreshJobRecommendations = async (resumeId: string, userId: string, skills: string[]) => {
   const { data, error } = await supabase.functions.invoke('scrape-jobs', {
     body: { skills, resumeId, userId }
   });
-
   if (error) throw error;
   return data;
 };
 
-// Subscribe to real-time job updates
+// Subscribe to job updates - polls Neon instead of realtime
 export const subscribeToJobUpdates = (
   resumeId: string, 
   callback: (jobs: any[]) => void
 ) => {
-  const channel = supabase
-    .channel(`jobs-${resumeId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'job_recommendations',
-        filter: `resume_id=eq.${resumeId}`,
-      },
-      async () => {
-        // Fetch updated jobs
-        const { data } = await supabase
-          .from('job_recommendations')
-          .select('*')
-          .eq('resume_id', resumeId)
-          .order('match_percentage', { ascending: false });
-        
-        if (data) callback(data);
+  // Poll every 5 seconds since Neon doesn't have realtime
+  const interval = setInterval(async () => {
+    try {
+      const resume = await neonDb('get_resume_by_id', { id: resumeId });
+      if (resume?.job_recommendations) {
+        callback(resume.job_recommendations);
       }
-    )
-    .subscribe();
+    } catch (e) {
+      console.error('Poll error:', e);
+    }
+  }, 5000);
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  return () => clearInterval(interval);
+};
+
+// ===== Profile (Neon) =====
+export const upsertProfile = async (userId: string, email: string, fullName: string) => {
+  return await neonDb('upsert_profile', { user_id: userId, email, full_name: fullName });
 };

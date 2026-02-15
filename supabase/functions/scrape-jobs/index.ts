@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { neon } from "https://esm.sh/@neondatabase/serverless@0.9.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,24 +27,15 @@ serve(async (req) => {
     
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const NEON_DATABASE_URL = Deno.env.get("NEON_DATABASE_URL");
 
-    if (!FIRECRAWL_API_KEY) {
-      throw new Error("FIRECRAWL_API_KEY is not configured");
-    }
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    if (!NEON_DATABASE_URL) throw new Error("NEON_DATABASE_URL is not configured");
+    if (!skills || skills.length === 0) throw new Error("No skills provided");
 
-    if (!skills || skills.length === 0) {
-      throw new Error("No skills provided for job search");
-    }
+    const sql = neon(NEON_DATABASE_URL);
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Create search queries from top skills - India focused
     const topSkills = skills.slice(0, 5).join(" ");
     const searchQueries = [
       `${topSkills} jobs India Bangalore Mumbai Delhi`,
@@ -53,15 +44,10 @@ serve(async (req) => {
       `${topSkills} jobs Hyderabad Chennai Pune`,
     ];
 
-    console.log("Searching for India jobs with skills:", topSkills);
-
     const allJobResults: JobResult[] = [];
 
-    // Search multiple job sources using Firecrawl - India focused
     for (const query of searchQueries) {
       try {
-        console.log("Searching:", query);
-        
         const searchResponse = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: {
@@ -69,35 +55,26 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            query: query + " site:linkedin.com/jobs OR site:indeed.co.in OR site:naukri.com OR site:glassdoor.co.in",
+            query: query + " site:linkedin.com/jobs OR site:indeed.co.in OR site:naukri.com",
             limit: 5,
             country: "IN",
-            scrapeOptions: {
-              formats: ["markdown"],
-            },
+            scrapeOptions: { formats: ["markdown"] },
           }),
         });
 
         if (searchResponse.ok) {
           const searchData = await searchResponse.json();
-          console.log("Search results:", searchData.data?.length || 0);
-          
           if (searchData.data && Array.isArray(searchData.data)) {
             for (const result of searchData.data) {
-              // Calculate match percentage based on skill overlap
               const matchedSkills = skills.filter((skill: string) => 
                 (result.markdown || result.description || "").toLowerCase().includes(skill.toLowerCase())
               );
               const matchPercentage = Math.min(95, Math.round((matchedSkills.length / skills.length) * 100) + 40);
-
-              // Keep full description (up to 2000 chars for database)
-              const fullDescription = (result.markdown || result.description || "").substring(0, 2000);
-
               allJobResults.push({
                 title: result.title || "Job Opening",
                 company: extractCompany(result.url || result.title || ""),
                 location: extractIndiaLocation(result.markdown || result.description || ""),
-                description: fullDescription,
+                description: (result.markdown || result.description || "").substring(0, 2000),
                 url: result.url || "",
                 matchedSkills: matchedSkills.slice(0, 5),
                 matchPercentage,
@@ -106,61 +83,25 @@ serve(async (req) => {
           }
         }
       } catch (error) {
-        console.error("Search error for query:", query, error);
+        console.error("Search error:", error);
       }
     }
 
-    // Remove duplicates and sort by match
     const uniqueJobs = removeDuplicates(allJobResults);
     const sortedJobs = uniqueJobs.sort((a, b) => b.matchPercentage - a.matchPercentage).slice(0, 10);
 
-    console.log("Found unique jobs:", sortedJobs.length);
-
-    // Use AI to enhance job recommendations with better matching
     if (sortedJobs.length > 0) {
-      const enhancePrompt = `Given these job search results and the candidate's skills, enhance and structure the job recommendations:
+      const enhancePrompt = `Given job results and candidate skills (${skills.join(", ")}), return JSON array of enhanced India job recommendations with: jobTitle, companyType, companyName, location, matchPercentage(50-95), matchedSkills[], requiredSkills[], jobDescription(200+ words), salaryRange(INR), applyUrl.
 
-CANDIDATE SKILLS: ${skills.join(", ")}
-
-RAW JOB RESULTS:
-${JSON.stringify(sortedJobs, null, 2)}
-
-Return a JSON array with enhanced job recommendations FOR INDIA. For each job:
-1. Clean up the job title
-2. Extract or estimate the company name
-3. Calculate an accurate match percentage based on skill overlap
-4. Identify which candidate skills match the job
-5. Identify required skills the candidate is missing
-6. Provide a DETAILED and COMPLETE job description (at least 200 words covering responsibilities, requirements, and benefits)
-7. Estimate salary range in INR (Indian Rupees) based on role and Indian market data
-8. Location MUST be in India (city name like Bangalore, Mumbai, Delhi, Hyderabad, etc.)
-
-Return format:
-[
-  {
-    "jobTitle": "clean job title",
-    "companyType": "startup/enterprise/agency/tech company",
-    "companyName": "company name if known",
-    "location": "City, India",
-    "matchPercentage": number (50-95),
-    "matchedSkills": ["skill1", "skill2"],
-    "requiredSkills": ["missing skill1"],
-    "jobDescription": "DETAILED job description with responsibilities, requirements, qualifications, and benefits - at least 200 words",
-    "salaryRange": "₹XX,XX,XXX - ₹XX,XX,XXX per annum",
-    "applyUrl": "job url"
-  }
-]`;
+RAW RESULTS: ${JSON.stringify(sortedJobs, null, 2)}`;
 
       const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: "You are a job matching expert. Enhance job listings with accurate skill matching. Return only valid JSON array." },
+            { role: "system", content: "Job matching expert. Return only valid JSON array." },
             { role: "user", content: enhancePrompt },
           ],
         }),
@@ -174,34 +115,13 @@ Return format:
         try {
           const enhancedJobs = JSON.parse(enhancedText);
           
-          // Save to database if resumeId provided
           if (resumeId && userId && Array.isArray(enhancedJobs)) {
-            // First delete any existing AI-generated recommendations
-            await supabase
-              .from("job_recommendations")
-              .delete()
-              .eq("resume_id", resumeId)
-              .eq("user_id", userId);
+            // Delete existing and insert new — using Neon
+            await sql`DELETE FROM job_recommendations WHERE resume_id = ${resumeId}::uuid AND user_id = ${userId}`;
 
-            // Insert new scraped jobs
-            const jobRecords = enhancedJobs.map((job: any) => ({
-              resume_id: resumeId,
-              user_id: userId,
-              job_title: job.jobTitle || "Unknown Position",
-              company_type: job.companyType || job.companyName || "Company",
-              match_percentage: job.matchPercentage || 70,
-              matched_skills: job.matchedSkills || [],
-              required_skills: job.requiredSkills || [],
-              job_description: job.jobDescription || "",
-              salary_range: job.salaryRange || "Competitive",
-            }));
-
-            const { error: insertError } = await supabase
-              .from("job_recommendations")
-              .insert(jobRecords);
-
-            if (insertError) {
-              console.error("Insert error:", insertError);
+            for (const job of enhancedJobs) {
+              await sql`INSERT INTO job_recommendations (resume_id, user_id, job_title, company_type, match_percentage, matched_skills, required_skills, job_description, salary_range)
+                VALUES (${resumeId}::uuid, ${userId}, ${job.jobTitle || "Unknown"}, ${job.companyType || job.companyName || "Company"}, ${job.matchPercentage || 70}, ${JSON.stringify(job.matchedSkills || [])}, ${JSON.stringify(job.requiredSkills || [])}, ${job.jobDescription || ""}, ${job.salaryRange || "Competitive"})`;
             }
           }
 
@@ -209,64 +129,38 @@ Return format:
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         } catch (parseError) {
-          console.error("Failed to parse enhanced jobs:", parseError);
+          console.error("Parse error:", parseError);
         }
       }
     }
 
-    // Fallback: return basic scraped results
     return new Response(JSON.stringify({ success: true, jobs: sortedJobs }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
     console.error("Error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
 
 function extractCompany(text: string): string {
-  // Try to extract company from LinkedIn/Indeed/Naukri URLs or text
   const linkedinMatch = text.match(/linkedin\.com\/company\/([^\/\?]+)/i);
   if (linkedinMatch) return linkedinMatch[1].replace(/-/g, " ");
-  
   const indeedMatch = text.match(/indeed\.co\.in\/cmp\/([^\/\?]+)/i);
   if (indeedMatch) return indeedMatch[1].replace(/-/g, " ");
-  
-  const naukriMatch = text.match(/naukri\.com\/([^\/\?]+)-jobs/i);
-  if (naukriMatch) return naukriMatch[1].replace(/-/g, " ");
-  
   return "Tech Company";
 }
 
 function extractIndiaLocation(text: string): string {
-  const lowerText = text.toLowerCase();
-  
-  // Major Indian cities
-  const cities = [
-    "Bangalore", "Bengaluru", "Mumbai", "Delhi", "NCR", "Gurgaon", "Gurugram",
-    "Hyderabad", "Chennai", "Pune", "Kolkata", "Noida", "Ahmedabad", "Jaipur",
-    "Kochi", "Thiruvananthapuram", "Coimbatore", "Indore", "Chandigarh"
-  ];
-  
+  const lower = text.toLowerCase();
+  const cities = ["Bangalore", "Bengaluru", "Mumbai", "Delhi", "Gurgaon", "Gurugram", "Hyderabad", "Chennai", "Pune", "Kolkata", "Noida", "Ahmedabad"];
   for (const city of cities) {
-    if (lowerText.includes(city.toLowerCase())) {
-      return `${city}, India`;
-    }
+    if (lower.includes(city.toLowerCase())) return `${city}, India`;
   }
-  
-  if (lowerText.includes("remote") && lowerText.includes("india")) {
-    return "Remote, India";
-  }
-  
-  if (lowerText.includes("india")) {
-    return "India";
-  }
-  
+  if (lower.includes("remote") && lower.includes("india")) return "Remote, India";
   return "India (Remote/Hybrid)";
 }
 
