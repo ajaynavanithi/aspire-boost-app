@@ -91,7 +91,7 @@ serve(async (req) => {
     const sortedJobs = uniqueJobs.sort((a, b) => b.matchPercentage - a.matchPercentage).slice(0, 10);
 
     if (sortedJobs.length > 0) {
-      const enhancePrompt = `Given job results and candidate skills (${skills.join(", ")}), return JSON array of enhanced India job recommendations with: jobTitle, companyType, companyName, location, matchPercentage(50-95), matchedSkills[], requiredSkills[], jobDescription(200+ words), salaryRange(INR), applyUrl.
+      const enhancePrompt = `Given job results and candidate skills (${skills.join(", ")}), return JSON array of enhanced India job recommendations. IMPORTANT: For "applyUrl", use the EXACT real URL from the raw results - do NOT make up URLs. Each object must have: jobTitle, companyType, companyName, location, matchPercentage(50-95), matchedSkills(string[]), requiredSkills(string[]), jobDescription(200+ words), salaryRange(INR), applyUrl(MUST be the real URL from the scraped result).
 
 RAW RESULTS: ${JSON.stringify(sortedJobs, null, 2)}`;
 
@@ -120,8 +120,8 @@ RAW RESULTS: ${JSON.stringify(sortedJobs, null, 2)}`;
             await sql`DELETE FROM job_recommendations WHERE resume_id = ${resumeId}::uuid AND user_id = ${userId}`;
 
             for (const job of enhancedJobs) {
-              await sql`INSERT INTO job_recommendations (resume_id, user_id, job_title, company_type, match_percentage, matched_skills, required_skills, job_description, salary_range)
-                VALUES (${resumeId}::uuid, ${userId}, ${job.jobTitle || "Unknown"}, ${job.companyType || job.companyName || "Company"}, ${job.matchPercentage || 70}, ${JSON.stringify(job.matchedSkills || [])}, ${JSON.stringify(job.requiredSkills || [])}, ${job.jobDescription || ""}, ${job.salaryRange || "Competitive"})`;
+              await sql`INSERT INTO job_recommendations (resume_id, user_id, job_title, company_type, match_percentage, matched_skills, required_skills, job_description, salary_range, apply_url)
+                VALUES (${resumeId}::uuid, ${userId}, ${job.jobTitle || "Unknown"}, ${job.companyType || job.companyName || "Company"}, ${job.matchPercentage || 70}, ${JSON.stringify(job.matchedSkills || [])}, ${JSON.stringify(job.requiredSkills || [])}, ${job.jobDescription || ""}, ${job.salaryRange || "Competitive"}, ${job.applyUrl || ""})`;
             }
           }
 

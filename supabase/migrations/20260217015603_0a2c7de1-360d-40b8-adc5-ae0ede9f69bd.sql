@@ -1,0 +1,1 @@
+ALTER TABLE public.job_recommendations ADD COLUMN apply_url text;
