@@ -108,55 +108,6 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="py-16 md:py-24 px-4 bg-muted/30">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-12">
-            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
-              How It Works
-            </h2>
-            <p className="text-muted-foreground">
-              Get started in three simple steps
-            </p>
-          </div>
-
-          <div className="space-y-8">
-            {[
-              { step: '1', title: 'Upload Your Resume', description: 'Upload your resume in PDF or DOCX format. Our AI will analyze it instantly.' },
-              { step: '2', title: 'Get Your Analysis', description: 'Receive a detailed ATS score, skill breakdown, and improvement suggestions.' },
-              { step: '3', title: 'Land Your Dream Job', description: 'Use our job matches and interview prep to ace your applications.' }
-            ].map((item, index) => (
-              <div key={index} className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold shrink-0">
-                  {item.step}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">{item.title}</h3>
-                  <p className="text-muted-foreground">{item.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 md:py-24 px-4">
-        <div className="container mx-auto max-w-2xl text-center">
-          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Ready to Get Started?
-          </h2>
-          <p className="text-muted-foreground mb-8">
-            Join thousands of job seekers who have improved their resumes with ResumeAI.
-          </p>
-          <Link to="/signup">
-            <Button variant="hero" size="xl">
-              Start Free Analysis
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
-        </div>
-      </section>
 
     </div>
   );
