@@ -15,6 +15,15 @@ import {
   Loader2
 } from 'lucide-react';
 
+// Helper to safely convert any value to a displayable string
+const toStr = (val: any): string => {
+  if (typeof val === 'string') return val;
+  if (val && typeof val === 'object') {
+    return val.name || val.title || val.skill || val.keyword || val.label || val.degree || val.role || JSON.stringify(val);
+  }
+  return String(val ?? '');
+};
+
 export const AnalysisPage: React.FC = () => {
   const { user } = useAuth();
   const [analysis, setAnalysis] = useState<any>(null);
@@ -65,15 +74,15 @@ export const AnalysisPage: React.FC = () => {
     );
   }
 
-  const strengths = analysis.strengths as string[] || [];
-  const weaknesses = analysis.weaknesses as string[] || [];
-  const skills = analysis.extracted_skills as string[] || [];
+  const strengths = (analysis.strengths as any[] || []).map(toStr);
+  const weaknesses = (analysis.weaknesses as any[] || []).map(toStr);
+  const skills = (analysis.extracted_skills as any[] || []).map(toStr);
   const education = analysis.education as any[] || [];
   const experience = analysis.experience as any[] || [];
   const projects = analysis.projects as any[] || [];
-  const certifications = analysis.certifications as string[] || [];
-  const missingKeywords = analysis.missing_keywords as string[] || [];
-  const tips = analysis.improvement_tips as string[] || [];
+  const certifications = analysis.certifications as any[] || [];
+  const missingKeywords = (analysis.missing_keywords as any[] || []).map(toStr);
+  const tips = (analysis.improvement_tips as any[] || []).map(toStr);
 
   return (
     <DashboardLayout>
