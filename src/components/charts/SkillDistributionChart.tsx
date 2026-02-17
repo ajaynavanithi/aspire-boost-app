@@ -11,7 +11,10 @@ export const SkillDistributionChart: React.FC<SkillDistributionChartProps> = ({
   skillGaps 
 }) => {
   // Categorize skills (simplified categorization)
-  const categorizeSkill = (skill: string): string => {
+  const categorizeSkill = (skill: any): string => {
+    if (typeof skill !== 'string') {
+      skill = skill?.name || skill?.skill || skill?.title || String(skill ?? '');
+    }
     const techKeywords = ['react', 'javascript', 'python', 'java', 'node', 'typescript', 'sql', 'aws', 'docker', 'kubernetes', 'html', 'css', 'git', 'api', 'database', 'backend', 'frontend', 'c++', 'c#', 'go', 'rust', 'php', 'ruby', 'swift', 'kotlin'];
     const toolKeywords = ['figma', 'jira', 'slack', 'notion', 'vscode', 'postman', 'webpack', 'vite', 'npm', 'yarn', 'excel', 'tableau', 'power bi', 'adobe', 'sketch'];
     const softKeywords = ['communication', 'leadership', 'teamwork', 'problem solving', 'analytical', 'time management', 'collaboration', 'presentation', 'critical thinking', 'creativity'];
