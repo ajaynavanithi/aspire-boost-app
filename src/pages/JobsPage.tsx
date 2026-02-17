@@ -210,20 +210,20 @@ export const JobsPage: React.FC = () => {
                           Matched Skills
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                          {(job.matched_skills as string[] || []).slice(0, 5).map((skill, i) => (
-                            <SkillBadge key={i} skill={skill} variant="matched" size="sm" />
+                          {(Array.isArray(job.matched_skills) ? job.matched_skills : []).slice(0, 5).map((skill: any, i: number) => (
+                            <SkillBadge key={i} skill={typeof skill === 'string' ? skill : (skill?.name || skill?.skill || JSON.stringify(skill))} variant="matched" size="sm" />
                           ))}
                         </div>
                       </div>
 
-                      {(job.required_skills as string[] || []).length > 0 && (
+                      {(Array.isArray(job.required_skills) ? job.required_skills : []).length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                             Skills to Develop
                           </p>
                           <div className="flex flex-wrap gap-1.5">
-                            {(job.required_skills as string[]).slice(0, 5).map((skill, i) => (
-                              <SkillBadge key={i} skill={skill} variant="missing" size="sm" />
+                            {(job.required_skills as any[]).slice(0, 5).map((skill: any, i: number) => (
+                              <SkillBadge key={i} skill={typeof skill === 'string' ? skill : (skill?.name || skill?.skill || JSON.stringify(skill))} variant="missing" size="sm" />
                             ))}
                           </div>
                         </div>
@@ -231,15 +231,15 @@ export const JobsPage: React.FC = () => {
                     </div>
 
                     {/* Apply Button */}
-                    {job.apply_url && (
+                    {(job.apply_url || job.applyUrl) && (
                       <a 
-                        href={job.apply_url} 
+                        href={job.apply_url || job.applyUrl} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 mt-4 text-sm text-primary hover:underline"
+                        className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        View Job Posting
+                        Apply Now
                       </a>
                     )}
                   </div>

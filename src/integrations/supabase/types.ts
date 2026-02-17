@@ -60,6 +60,7 @@ export type Database = {
       }
       job_recommendations: {
         Row: {
+          apply_url: string | null
           company_type: string | null
           created_at: string
           id: string
@@ -73,6 +74,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          apply_url?: string | null
           company_type?: string | null
           created_at?: string
           id?: string
@@ -86,6 +88,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          apply_url?: string | null
           company_type?: string | null
           created_at?: string
           id?: string
