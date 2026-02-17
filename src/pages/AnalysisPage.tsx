@@ -211,9 +211,9 @@ export const AnalysisPage: React.FC = () => {
               <ul className="space-y-3">
                 {experience.map((exp: any, index: number) => (
                   <li key={index} className="border-l-2 border-accent/30 pl-4">
-                    <p className="font-medium text-foreground">{exp.title || exp}</p>
+                    <p className="font-medium text-foreground">{typeof exp === 'string' ? exp : (exp.title || exp.role || JSON.stringify(exp))}</p>
                     {exp.company && (
-                      <p className="text-sm text-muted-foreground">{exp.company}</p>
+                      <p className="text-sm text-muted-foreground">{exp.company}{exp.duration ? ` · ${exp.duration}` : ''}</p>
                     )}
                   </li>
                 ))}
@@ -251,8 +251,8 @@ export const AnalysisPage: React.FC = () => {
                 <h3 className="font-display text-lg font-semibold text-foreground">Certifications</h3>
               </div>
               <ul className="space-y-2">
-                {certifications.map((cert, index) => (
-                  <li key={index} className="text-foreground">• {cert}</li>
+                {certifications.map((cert: any, index: number) => (
+                  <li key={index} className="text-foreground">• {typeof cert === 'string' ? cert : (cert.title || cert.name || JSON.stringify(cert))}{typeof cert === 'object' && cert.issuer ? ` — ${cert.issuer}` : ''}</li>
                 ))}
               </ul>
             </div>
