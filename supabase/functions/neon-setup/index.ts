@@ -93,8 +93,15 @@ serve(async (req) => {
       required_skills JSONB DEFAULT '[]',
       job_description TEXT,
       salary_range TEXT,
+      apply_url TEXT,
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
+
+    // Add apply_url column if it doesn't exist (for existing databases)
+    await sql`DO $$ BEGIN
+      ALTER TABLE job_recommendations ADD COLUMN apply_url TEXT;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$`;
 
     // Create skill_gaps table
     await sql`CREATE TABLE IF NOT EXISTS skill_gaps (
