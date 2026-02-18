@@ -36,11 +36,13 @@ serve(async (req) => {
 
     const sql = neon(NEON_DATABASE_URL);
 
-    const topSkills = skills.slice(0, 5).join(" ");
+    // Normalize skills to strings
+    const normalizedSkills: string[] = skills.map((s: any) => typeof s === 'string' ? s : (s?.name || s?.skill || s?.title || String(s ?? '')));
+    const topSkills = normalizedSkills.slice(0, 5).join(" ");
     const searchQueries = [
       `${topSkills} jobs India Bangalore Mumbai Delhi`,
-      `${skills[0]} developer jobs India 2024`,
-      `${skills.slice(0, 3).join(" ")} engineer India remote`,
+      `${normalizedSkills[0]} developer jobs India 2024`,
+      `${normalizedSkills.slice(0, 3).join(" ")} engineer India remote`,
       `${topSkills} jobs Hyderabad Chennai Pune`,
     ];
 
@@ -66,10 +68,10 @@ serve(async (req) => {
           const searchData = await searchResponse.json();
           if (searchData.data && Array.isArray(searchData.data)) {
             for (const result of searchData.data) {
-              const matchedSkills = skills.filter((skill: string) => 
+              const matchedSkills = normalizedSkills.filter((skill: string) => 
                 (result.markdown || result.description || "").toLowerCase().includes(skill.toLowerCase())
               );
-              const matchPercentage = Math.min(95, Math.round((matchedSkills.length / skills.length) * 100) + 40);
+              const matchPercentage = Math.min(95, Math.round((matchedSkills.length / normalizedSkills.length) * 100) + 40);
               allJobResults.push({
                 title: result.title || "Job Opening",
                 company: extractCompany(result.url || result.title || ""),
@@ -91,7 +93,7 @@ serve(async (req) => {
     const sortedJobs = uniqueJobs.sort((a, b) => b.matchPercentage - a.matchPercentage).slice(0, 10);
 
     if (sortedJobs.length > 0) {
-      const enhancePrompt = `Given job results and candidate skills (${skills.join(", ")}), return JSON array of enhanced India job recommendations. IMPORTANT: For "applyUrl", use the EXACT real URL from the raw results - do NOT make up URLs. Each object must have: jobTitle, companyType, companyName, location, matchPercentage(50-95), matchedSkills(string[]), requiredSkills(string[]), jobDescription(200+ words), salaryRange(INR), applyUrl(MUST be the real URL from the scraped result).
+      const enhancePrompt = `Given job results and candidate skills (${normalizedSkills.join(", ")}), return JSON array of enhanced India job recommendations. IMPORTANT: For "applyUrl", use the EXACT real URL from the raw results - do NOT make up URLs. Each object must have: jobTitle, companyType, companyName, location, matchPercentage(50-95), matchedSkills(string[]), requiredSkills(string[]), jobDescription(200+ words), salaryRange(INR), applyUrl(MUST be the real URL from the scraped result).
 
 RAW RESULTS: ${JSON.stringify(sortedJobs, null, 2)}`;
 
