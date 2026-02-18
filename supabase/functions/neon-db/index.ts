@@ -128,8 +128,8 @@ serve(async (req) => {
         result = [];
         for (const job of records) {
           const r = await sql`
-            INSERT INTO job_recommendations (resume_id, user_id, job_title, company_type, match_percentage, matched_skills, required_skills, job_description, salary_range)
-            VALUES (${job.resume_id}::uuid, ${job.user_id}, ${job.job_title}, ${job.company_type}, ${job.match_percentage}, ${JSON.stringify(job.matched_skills)}, ${JSON.stringify(job.required_skills)}, ${job.job_description}, ${job.salary_range})
+            INSERT INTO job_recommendations (resume_id, user_id, job_title, company_type, match_percentage, matched_skills, required_skills, job_description, salary_range, apply_url)
+            VALUES (${job.resume_id}::uuid, ${job.user_id}, ${job.job_title}, ${job.company_type}, ${job.match_percentage}, ${JSON.stringify(job.matched_skills)}, ${JSON.stringify(job.required_skills)}, ${job.job_description}, ${job.salary_range}, ${job.apply_url || ''})
             RETURNING *
           `;
           result.push(r[0]);

@@ -175,17 +175,21 @@ export const subscribeToJobUpdates = (
   resumeId: string, 
   callback: (jobs: any[]) => void
 ) => {
-  // Poll every 5 seconds since Neon doesn't have realtime
+  let lastCount = -1;
+  // Poll every 30 seconds since Neon doesn't have realtime
   const interval = setInterval(async () => {
     try {
       const resume = await neonDb('get_resume_by_id', { id: resumeId });
-      if (resume?.job_recommendations) {
-        callback(resume.job_recommendations);
+      const jobs = resume?.job_recommendations || [];
+      // Only trigger callback if job count actually changed
+      if (jobs.length !== lastCount && jobs.length > 0) {
+        lastCount = jobs.length;
+        callback(jobs);
       }
     } catch (e) {
       console.error('Poll error:', e);
     }
-  }, 5000);
+  }, 30000);
 
   return () => clearInterval(interval);
 };
