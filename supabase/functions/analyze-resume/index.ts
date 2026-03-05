@@ -7,52 +7,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Use AI to extract text from document bytes
-async function extractTextWithAI(fileBytes: Uint8Array, fileName: string, apiKey: string): Promise<string> {
-  try {
-    if (fileName.toLowerCase().endsWith('.txt')) {
-      const text = new TextDecoder('utf-8').decode(fileBytes);
-      return text.trim();
-    }
-
-    let binaryString = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < fileBytes.length; i += chunkSize) {
-      const chunk = fileBytes.slice(i, i + chunkSize);
-      binaryString += String.fromCharCode(...chunk);
-    }
-    const base64Data = btoa(binaryString);
-    const mimeType = fileName.toLowerCase().endsWith('.pdf') 
-      ? 'application/pdf' 
-      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-
-    const extractionPrompt = `Extract ALL text content from this document. Return ONLY the extracted text, no formatting or JSON.`;
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "user", content: [
-            { type: "text", text: extractionPrompt },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}` } }
-          ]},
-        ],
-      }),
-    });
-
-    if (!response.ok) return fallbackTextExtraction(fileBytes, fileName);
-    const result = await response.json();
-    return (result.choices?.[0]?.message?.content || '').trim();
-  } catch (error) {
-    return fallbackTextExtraction(fileBytes, fileName);
-  }
-}
-
 function fallbackTextExtraction(fileBytes: Uint8Array, fileName: string): string {
   try {
     const text = new TextDecoder('utf-8', { fatal: false }).decode(fileBytes);
@@ -71,33 +25,6 @@ function fallbackTextExtraction(fileBytes: Uint8Array, fileName: string): string
   } catch { return ''; }
 }
 
-async function performNLPExtraction(rawText: string, apiKey: string): Promise<any> {
-  const nlpPrompt = `Perform NLP entity extraction on this resume text. Extract structured information.
-
-RESUME TEXT:
-${rawText}
-
-Return JSON with: personalInfo, professionalSummary, skills (technical, tools, softSkills, certifications), experience[], education[], projects[], languages[], rawSkillsList[]`;
-
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        { role: "system", content: "Expert NLP resume parser. Return only valid JSON." },
-        { role: "user", content: nlpPrompt },
-      ],
-    }),
-  });
-
-  if (!response.ok) throw new Error(`NLP extraction failed: ${response.status}`);
-  const result = await response.json();
-  let text = result.choices?.[0]?.message?.content || "{}";
-  text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  return JSON.parse(text);
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -105,6 +32,8 @@ serve(async (req) => {
 
   try {
     const { resumeId, userId, fileName, filePath } = await req.json();
+    console.log("Starting analysis for:", resumeId, fileName);
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const NEON_DATABASE_URL = Deno.env.get("NEON_DATABASE_URL");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -114,15 +43,13 @@ serve(async (req) => {
     if (!NEON_DATABASE_URL) throw new Error("NEON_DATABASE_URL is not configured");
 
     const sql = neon(NEON_DATABASE_URL);
-    // Supabase client only for storage access
     const supabase = createClient(supabaseUrl, supabaseKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Update status to processing in Neon
     await sql`UPDATE resumes SET status = 'processing'::analysis_status WHERE id = ${resumeId}::uuid`;
 
-    // Download resume from storage
+    // Step 1: Download and extract text
     let resumeText = '';
     if (filePath) {
       const { data: signedData, error: signedError } = await supabase.storage
@@ -134,57 +61,107 @@ serve(async (req) => {
       if (!fileResponse.ok) throw new Error('Failed to download resume file');
 
       const fileBytes = new Uint8Array(await fileResponse.arrayBuffer());
-      resumeText = await extractTextWithAI(fileBytes, fileName || 'resume.pdf', LOVABLE_API_KEY);
+
+      // For .txt files, decode directly
+      if (fileName.toLowerCase().endsWith('.txt')) {
+        resumeText = new TextDecoder('utf-8').decode(fileBytes).trim();
+      } else {
+        // For PDF/DOCX, send as base64 to AI for extraction
+        let binaryString = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < fileBytes.length; i += chunkSize) {
+          const chunk = fileBytes.slice(i, i + chunkSize);
+          binaryString += String.fromCharCode(...chunk);
+        }
+        const base64Data = btoa(binaryString);
+        const mimeType = fileName.toLowerCase().endsWith('.pdf')
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+        try {
+          const extractResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash-lite",
+              messages: [
+                { role: "user", content: [
+                  { type: "text", text: "Extract ALL text content from this document. Return ONLY the extracted text, no formatting or JSON." },
+                  { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}` } }
+                ]},
+              ],
+            }),
+          });
+
+          if (extractResponse.ok) {
+            const result = await extractResponse.json();
+            resumeText = (result.choices?.[0]?.message?.content || '').trim();
+          } else {
+            resumeText = fallbackTextExtraction(fileBytes, fileName);
+          }
+        } catch {
+          resumeText = fallbackTextExtraction(fileBytes, fileName);
+        }
+      }
     }
+
+    console.log("Extracted text length:", resumeText.length);
 
     if (resumeText.length < 50) {
       resumeText = `Resume file: ${fileName}. Limited text extraction available.`;
     }
 
-    const truncatedText = resumeText.length > 12000 ? resumeText.substring(0, 12000) : resumeText;
+    const truncatedText = resumeText.length > 8000 ? resumeText.substring(0, 8000) : resumeText;
 
-    // NLP Extraction
-    let nlpData;
-    try {
-      nlpData = await performNLPExtraction(truncatedText, LOVABLE_API_KEY);
-    } catch {
-      nlpData = { rawSkillsList: [], skills: { technical: [], tools: [], softSkills: [] }, experience: [], education: [] };
-    }
+    // Step 2: SINGLE combined AI call for NLP + Analysis (saves ~20s)
+    const combinedPrompt = `Analyze this resume text and return a single JSON object with ALL of the following:
 
-    const allSkills = [
-      ...(nlpData.rawSkillsList || []),
-      ...(nlpData.skills?.technical || []),
-      ...(nlpData.skills?.tools || []),
-      ...(nlpData.skills?.softSkills || []),
-      ...(nlpData.skills?.certifications || []),
-    ].filter((s: string, i: number, arr: string[]) => s && arr.indexOf(s) === i);
+1. "personalInfo": { name, email, phone, location, linkedin }
+2. "skills": { "technical": [], "tools": [], "softSkills": [], "certifications": [] }
+3. "experience": [{ company, role, duration, highlights[] }]
+4. "education": [{ institution, degree, year }]
+5. "projects": [{ name, description, technologies[] }]
+6. "atsScore": number 0-100
+7. "strengths": string[]
+8. "weaknesses": string[]
+9. "missingKeywords": string[]
+10. "improvementTips": string[]
+11. "skillGaps": [{ "skillName": string, "category": "technical"|"soft_skills"|"tools_frameworks", "importance": "high"|"medium"|"low", "learningResources": string[] }]
+12. "interviewQuestions": [{ "jobRole": string, "question": string, "category": "technical"|"hr"|"coding_scenario", "difficulty": "beginner"|"intermediate"|"advanced", "suggestedAnswer": string }] - generate 15 questions
 
-    // AI Analysis
-    const analysisPrompt = `Analyze this resume and provide JSON with: atsScore (0-100), strengths[], weaknesses[], missingKeywords[], improvementTips[], skillGaps[{skillName, category(technical|soft_skills|tools_frameworks), importance, learningResources[]}], interviewQuestions[{jobRole, question, category(technical|hr|coding_scenario), difficulty(beginner|intermediate|advanced), suggestedAnswer}] - generate 15-20 questions.
+RESUME TEXT:
+${truncatedText}`;
 
-NLP DATA: ${JSON.stringify(nlpData, null, 2)}
-RESUME TEXT: ${truncatedText.substring(0, 4000)}`;
+    console.log("Sending combined AI analysis request...");
 
     const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "Expert career coach. Return only valid JSON." },
-          { role: "user", content: analysisPrompt },
+          { role: "system", content: "Expert career coach and resume analyst. Return only valid JSON, no markdown." },
+          { role: "user", content: combinedPrompt },
         ],
       }),
     });
 
     if (!analysisResponse.ok) {
-      if (analysisResponse.status === 429) {
+      const status = analysisResponse.status;
+      console.error("AI analysis failed with status:", status);
+      if (status === 429) {
         await sql`UPDATE resumes SET status = 'failed'::analysis_status WHERE id = ${resumeId}::uuid`;
         return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error("AI analysis failed");
+      throw new Error(`AI analysis failed: ${status}`);
     }
 
     const analysisResult = await analysisResponse.json();
@@ -192,45 +169,56 @@ RESUME TEXT: ${truncatedText.substring(0, 4000)}`;
     analysisText = analysisText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     const analysis = JSON.parse(analysisText);
 
-    // Save to Neon
-    await sql`INSERT INTO resume_analysis (resume_id, user_id, ats_score, extracted_skills, education, experience, projects, certifications, strengths, weaknesses, missing_keywords, improvement_tips)
-      VALUES (${resumeId}::uuid, ${userId}, ${analysis.atsScore || 65}, ${JSON.stringify(allSkills)}, ${JSON.stringify(nlpData.education || [])}, ${JSON.stringify(nlpData.experience || [])}, ${JSON.stringify(nlpData.projects || [])}, ${JSON.stringify(nlpData.skills?.certifications || [])}, ${JSON.stringify(analysis.strengths || [])}, ${JSON.stringify(analysis.weaknesses || [])}, ${JSON.stringify(analysis.missingKeywords || [])}, ${JSON.stringify(analysis.improvementTips || [])})`;
+    console.log("AI analysis complete, ATS score:", analysis.atsScore);
 
-    // Save skill gaps
+    const allSkills = [
+      ...(analysis.skills?.technical || []),
+      ...(analysis.skills?.tools || []),
+      ...(analysis.skills?.softSkills || []),
+      ...(analysis.skills?.certifications || []),
+    ].filter((s: string, i: number, arr: string[]) => s && arr.indexOf(s) === i);
+
+    // Step 3: Save to Neon (parallel inserts)
+    const savePromises = [];
+
+    savePromises.push(
+      sql`INSERT INTO resume_analysis (resume_id, user_id, ats_score, extracted_skills, education, experience, projects, certifications, strengths, weaknesses, missing_keywords, improvement_tips)
+        VALUES (${resumeId}::uuid, ${userId}, ${analysis.atsScore || 65}, ${JSON.stringify(allSkills)}, ${JSON.stringify(analysis.education || [])}, ${JSON.stringify(analysis.experience || [])}, ${JSON.stringify(analysis.projects || [])}, ${JSON.stringify(analysis.skills?.certifications || [])}, ${JSON.stringify(analysis.strengths || [])}, ${JSON.stringify(analysis.weaknesses || [])}, ${JSON.stringify(analysis.missingKeywords || [])}, ${JSON.stringify(analysis.improvementTips || [])})`
+    );
+
     if (analysis.skillGaps?.length > 0) {
       for (const gap of analysis.skillGaps) {
-        await sql`INSERT INTO skill_gaps (resume_id, user_id, skill_name, category, importance, learning_resources)
-          VALUES (${resumeId}::uuid, ${userId}, ${gap.skillName}, ${gap.category || 'technical'}::skill_category, ${gap.importance || 'medium'}, ${JSON.stringify(gap.learningResources || [])})`;
+        savePromises.push(
+          sql`INSERT INTO skill_gaps (resume_id, user_id, skill_name, category, importance, learning_resources)
+            VALUES (${resumeId}::uuid, ${userId}, ${gap.skillName}, ${gap.category || 'technical'}::skill_category, ${gap.importance || 'medium'}, ${JSON.stringify(gap.learningResources || [])})`
+        );
       }
     }
 
-    // Save interview questions
     if (analysis.interviewQuestions?.length > 0) {
       for (const q of analysis.interviewQuestions) {
-        await sql`INSERT INTO interview_questions (resume_id, user_id, job_role, question, category, difficulty, suggested_answer)
-          VALUES (${resumeId}::uuid, ${userId}, ${q.jobRole || 'General'}, ${q.question}, ${q.category || 'technical'}::question_category, ${q.difficulty || 'intermediate'}::question_difficulty, ${q.suggestedAnswer || ''})`;
+        savePromises.push(
+          sql`INSERT INTO interview_questions (resume_id, user_id, job_role, question, category, difficulty, suggested_answer)
+            VALUES (${resumeId}::uuid, ${userId}, ${q.jobRole || 'General'}, ${q.question}, ${q.category || 'technical'}::question_category, ${q.difficulty || 'intermediate'}::question_difficulty, ${q.suggestedAnswer || ''})`
+        );
       }
     }
 
-    // Update resume with raw text
-    await sql`UPDATE resumes SET raw_text = ${truncatedText.substring(0, 5000)}, status = 'completed'::analysis_status WHERE id = ${resumeId}::uuid`;
+    savePromises.push(
+      sql`UPDATE resumes SET raw_text = ${truncatedText.substring(0, 5000)}, status = 'completed'::analysis_status WHERE id = ${resumeId}::uuid`
+    );
 
-    // Trigger job scraping
-    try {
-      const scrapeResponse = await fetch(`${supabaseUrl}/functions/v1/scrape-jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${supabaseKey}` },
-        body: JSON.stringify({ skills: allSkills.slice(0, 10), resumeId, userId }),
-      });
-      if (scrapeResponse.ok) {
-        const r = await scrapeResponse.json();
-        console.log('Job scraping completed:', r.jobs?.length || 0);
-      }
-    } catch (e) {
-      console.error('Job scraping error:', e);
-    }
+    await Promise.all(savePromises);
+    console.log("All data saved to Neon");
 
-    return new Response(JSON.stringify({ success: true, analysis: { ...analysis, nlpData, extractedSkills: allSkills } }), {
+    // Step 4: Trigger job scraping (fire-and-forget, don't await)
+    fetch(`${supabaseUrl}/functions/v1/scrape-jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${supabaseKey}` },
+      body: JSON.stringify({ skills: allSkills.slice(0, 10), resumeId, userId }),
+    }).catch(e => console.error('Job scraping trigger error:', e));
+
+    return new Response(JSON.stringify({ success: true, analysis: { ...analysis, extractedSkills: allSkills } }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

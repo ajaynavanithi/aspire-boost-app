@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ResumeUploader } from '@/components/upload/ResumeUploader';
 import { useAuth } from '@/contexts/AuthContext';
-import { uploadResume, createResumeRecord, updateResumeStatus } from '@/lib/supabase';
+import { uploadResume, createResumeRecord } from '@/lib/supabase';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Sparkles, FileText, Target, Briefcase } from 'lucide-react';
@@ -12,6 +12,13 @@ export const UploadPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const handleUpload = async (file: File) => {
     if (!user) {
@@ -28,33 +35,46 @@ export const UploadPage: React.FC = () => {
 
       // 2. Create resume record
       const resume = await createResumeRecord(user.id, file.name, url);
-      toast.info('Starting AI analysis...');
+      toast.info('Starting AI analysis... This may take up to a minute.');
 
-      // 3. Call edge function for analysis
-      const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-resume', {
+      // 3. Fire-and-forget: call edge function (don't await the response)
+      supabase.functions.invoke('analyze-resume', {
         body: { 
           resumeId: resume.id, 
           userId: user.id,
           fileName: file.name,
           filePath: path 
         }
-      });
+      }).catch(err => console.log('Analyze function call ended:', err));
 
-      if (analysisError) {
-        console.error('Analysis error:', analysisError);
-        await updateResumeStatus(resume.id, 'failed');
-        toast.error('Analysis failed. Please try again.');
-        return;
-      }
-
-      await updateResumeStatus(resume.id, 'completed');
-      toast.success('Resume analyzed successfully!');
-      navigate('/analysis');
+      // 4. Poll for completion via neon-db
+      pollRef.current = setInterval(async () => {
+        try {
+          const { data } = await supabase.functions.invoke('neon-db', {
+            body: { action: 'get_resume_by_id', params: { id: resume.id } }
+          });
+          const status = data?.data?.status;
+          
+          if (status === 'completed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setIsUploading(false);
+            toast.success('Resume analyzed successfully!');
+            navigate('/analysis');
+          } else if (status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setIsUploading(false);
+            toast.error('Analysis failed. Please try again.');
+          }
+        } catch (e) {
+          console.error('Poll error:', e);
+        }
+      }, 5000);
 
     } catch (error) {
       console.error('Upload error:', error);
       toast.error('Failed to upload resume. Please try again.');
-    } finally {
       setIsUploading(false);
     }
   };
