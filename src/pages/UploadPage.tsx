@@ -20,7 +20,7 @@ export const UploadPage: React.FC = () => {
     };
   }, []);
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (file: File, targetRole: string) => {
     if (!user) {
       toast.error('Please sign in to upload a resume');
       return;
@@ -37,13 +37,14 @@ export const UploadPage: React.FC = () => {
       const resume = await createResumeRecord(user.id, file.name, url);
       toast.info('Starting AI analysis... This may take up to a minute.');
 
-      // 3. Fire-and-forget: call edge function (don't await the response)
+      // 3. Fire-and-forget: call edge function
       supabase.functions.invoke('analyze-resume', {
         body: { 
           resumeId: resume.id, 
           userId: user.id,
           fileName: file.name,
-          filePath: path 
+          filePath: path,
+          targetRole
         }
       }).catch(err => console.log('Analyze function call ended:', err));
 

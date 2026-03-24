@@ -1,12 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, X, Loader2, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface ResumeUploaderProps {
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File, targetRole: string) => Promise<void>;
   isUploading?: boolean;
 }
 
@@ -15,6 +16,7 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
   isUploading = false,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [targetRole, setTargetRole] = useState('');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -54,7 +56,11 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
 
   const handleUpload = async () => {
     if (!selectedFile) return;
-    await onUpload(selectedFile);
+    if (!targetRole.trim()) {
+      toast.error('Please enter your targeted job role');
+      return;
+    }
+    await onUpload(selectedFile, targetRole.trim());
   };
 
   const removeFile = () => {
@@ -128,12 +134,30 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
             </div>
           </div>
 
+          {/* Targeted Job Role */}
+          <div className="mt-4 bg-card rounded-xl p-4 border border-border">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+              <Briefcase className="w-4 h-4 text-primary" />
+              Targeted Job Role <span className="text-destructive">*</span>
+            </label>
+            <Input
+              placeholder="e.g. Frontend Developer, Data Analyst, Product Manager..."
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+              disabled={isUploading}
+              className="bg-background"
+            />
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Your ATS score will be calculated based on this target role
+            </p>
+          </div>
+
           <Button
             variant="hero"
             size="xl"
             className="w-full mt-4"
             onClick={handleUpload}
-            disabled={isUploading}
+            disabled={isUploading || !targetRole.trim()}
           >
             {isUploading ? (
               <>
