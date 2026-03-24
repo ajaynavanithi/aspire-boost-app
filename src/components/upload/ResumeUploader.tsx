@@ -56,7 +56,11 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
 
   const handleUpload = async () => {
     if (!selectedFile) return;
-    await onUpload(selectedFile);
+    if (!targetRole.trim()) {
+      toast.error('Please enter your targeted job role');
+      return;
+    }
+    await onUpload(selectedFile, targetRole.trim());
   };
 
   const removeFile = () => {
