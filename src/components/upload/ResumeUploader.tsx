@@ -16,6 +16,7 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
   isUploading = false,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [targetRole, setTargetRole] = useState('');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
