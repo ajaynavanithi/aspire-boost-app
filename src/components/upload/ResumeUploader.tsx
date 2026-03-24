@@ -134,12 +134,30 @@ export const ResumeUploader: React.FC<ResumeUploaderProps> = ({
             </div>
           </div>
 
+          {/* Targeted Job Role */}
+          <div className="mt-4 bg-card rounded-xl p-4 border border-border">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+              <Briefcase className="w-4 h-4 text-primary" />
+              Targeted Job Role <span className="text-destructive">*</span>
+            </label>
+            <Input
+              placeholder="e.g. Frontend Developer, Data Analyst, Product Manager..."
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+              disabled={isUploading}
+              className="bg-background"
+            />
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Your ATS score will be calculated based on this target role
+            </p>
+          </div>
+
           <Button
             variant="hero"
             size="xl"
             className="w-full mt-4"
             onClick={handleUpload}
-            disabled={isUploading}
+            disabled={isUploading || !targetRole.trim()}
           >
             {isUploading ? (
               <>
