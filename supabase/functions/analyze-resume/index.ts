@@ -31,8 +31,8 @@ serve(async (req) => {
   }
 
   try {
-    const { resumeId, userId, fileName, filePath } = await req.json();
-    console.log("Starting analysis for:", resumeId, fileName);
+    const { resumeId, userId, fileName, filePath, targetRole } = await req.json();
+    console.log("Starting analysis for:", resumeId, fileName, "Target role:", targetRole);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const NEON_DATABASE_URL = Deno.env.get("NEON_DATABASE_URL");
