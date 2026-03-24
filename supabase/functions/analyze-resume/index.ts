@@ -168,8 +168,30 @@ ${truncatedText}`;
 
     const analysisResult = await analysisResponse.json();
     let analysisText = analysisResult.choices?.[0]?.message?.content || "";
+    // Clean up AI response - remove markdown fences, trailing commas, etc.
     analysisText = analysisText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const analysis = JSON.parse(analysisText);
+    // Fix common JSON issues: trailing commas before } or ]
+    analysisText = analysisText.replace(/,\s*([}\]])/g, "$1");
+    // Remove any text after the last closing brace
+    const lastBrace = analysisText.lastIndexOf("}");
+    if (lastBrace !== -1) {
+      analysisText = analysisText.substring(0, lastBrace + 1);
+    }
+    
+    let analysis;
+    try {
+      analysis = JSON.parse(analysisText);
+    } catch (parseError) {
+      console.error("JSON parse failed, attempting recovery. First 500 chars:", analysisText.substring(0, 500));
+      // Try to extract JSON object from the text
+      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const cleaned = jsonMatch[0].replace(/,\s*([}\]])/g, "$1");
+        analysis = JSON.parse(cleaned);
+      } else {
+        throw new Error("Failed to parse AI response as JSON");
+      }
+    }
 
     console.log("AI analysis complete, ATS score:", analysis.atsScore);
 
