@@ -117,20 +117,22 @@ serve(async (req) => {
     const truncatedText = resumeText.length > 8000 ? resumeText.substring(0, 8000) : resumeText;
 
     // Step 2: SINGLE combined AI call for NLP + Analysis (saves ~20s)
-    const combinedPrompt = `Analyze this resume text and return a single JSON object with ALL of the following:
+    const roleContext = targetRole ? `\n\nTARGETED JOB ROLE: ${targetRole}\nIMPORTANT: Calculate the ATS score specifically for the "${targetRole}" role. Evaluate how well this resume matches ATS systems for "${targetRole}" positions. Score higher if skills, experience, and keywords align with "${targetRole}" requirements. Also tailor strengths, weaknesses, missingKeywords, and improvementTips specifically for this target role.\n` : '';
 
+    const combinedPrompt = `Analyze this resume text and return a single JSON object with ALL of the following:
+${roleContext}
 1. "personalInfo": { name, email, phone, location, linkedin }
 2. "skills": { "technical": [], "tools": [], "softSkills": [], "certifications": [] }
 3. "experience": [{ company, role, duration, highlights[] }]
 4. "education": [{ institution, degree, year }]
 5. "projects": [{ name, description, technologies[] }]
-6. "atsScore": number 0-100
+6. "atsScore": number 0-100${targetRole ? ` (scored specifically for "${targetRole}" role)` : ''}
 7. "strengths": string[]
 8. "weaknesses": string[]
-9. "missingKeywords": string[]
-10. "improvementTips": string[]
-11. "skillGaps": [{ "skillName": string, "category": "technical"|"soft_skills"|"tools_frameworks", "importance": "high"|"medium"|"low", "learningResources": string[] }]
-12. "interviewQuestions": [{ "jobRole": string, "question": string, "category": "technical"|"hr"|"coding_scenario", "difficulty": "beginner"|"intermediate"|"advanced", "suggestedAnswer": string }] - generate 15 questions
+9. "missingKeywords": string[]${targetRole ? ` (keywords missing for "${targetRole}" role)` : ''}
+10. "improvementTips": string[]${targetRole ? ` (tips to improve resume for "${targetRole}" role)` : ''}
+11. "skillGaps": [{ "skillName": string, "category": "technical"|"soft_skills"|"tools_frameworks", "importance": "high"|"medium"|"low", "learningResources": string[] }]${targetRole ? ` (gaps relative to "${targetRole}" role)` : ''}
+12. "interviewQuestions": [{ "jobRole": string, "question": string, "category": "technical"|"hr"|"coding_scenario", "difficulty": "beginner"|"intermediate"|"advanced", "suggestedAnswer": string }] - generate 15 questions${targetRole ? ` specifically for "${targetRole}" role` : ''}
 
 RESUME TEXT:
 ${truncatedText}`;
