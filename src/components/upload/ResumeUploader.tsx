@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface ResumeUploaderProps {
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File, targetRole: string) => Promise<void>;
   isUploading?: boolean;
 }
 
