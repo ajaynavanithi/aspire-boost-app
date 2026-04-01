@@ -132,6 +132,7 @@ ${roleContext}
 9. "missingKeywords": string[]${targetRole ? ` (keywords missing for "${targetRole}" role)` : ''}
 10. "improvementTips": string[]${targetRole ? ` (tips to improve resume for "${targetRole}" role)` : ''}
 11. "skillGaps": [{ "skillName": string, "category": "technical"|"soft_skills"|"tools_frameworks", "importance": "high"|"medium"|"low", "learningResources": string[] }]${targetRole ? ` (gaps relative to "${targetRole}" role)` : ''}
+IMPORTANT: For each skill gap, "learningResources" MUST be real, relevant URLs from Coursera (https://www.coursera.org/learn/...) or YouTube (https://www.youtube.com/results?search_query=...). Provide 2-3 resources per gap. Use actual Coursera course slugs when possible (e.g. "https://www.coursera.org/learn/machine-learning") and YouTube search links for the skill (e.g. "https://www.youtube.com/results?search_query=learn+react+js+tutorial"). Do NOT use placeholder or made-up URLs.
 12. "interviewQuestions": [{ "jobRole": string, "question": string, "category": "technical"|"hr"|"coding_scenario", "difficulty": "beginner"|"intermediate"|"advanced", "suggestedAnswer": string }] - generate 15 questions${targetRole ? ` specifically for "${targetRole}" role` : ''}
 
 RESUME TEXT:
