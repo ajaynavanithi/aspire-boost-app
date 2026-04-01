@@ -219,11 +219,16 @@ ${truncatedText}`;
       }
     }
 
+    const validCategories = ['technical', 'hr', 'coding_scenario'];
+    const validDifficulties = ['beginner', 'intermediate', 'advanced'];
+
     if (analysis.interviewQuestions?.length > 0) {
       for (const q of analysis.interviewQuestions) {
+        const cat = validCategories.includes(q.category) ? q.category : 'technical';
+        const diff = validDifficulties.includes(q.difficulty) ? q.difficulty : 'intermediate';
         savePromises.push(
           sql`INSERT INTO interview_questions (resume_id, user_id, job_role, question, category, difficulty, suggested_answer)
-            VALUES (${resumeId}::uuid, ${userId}, ${q.jobRole || 'General'}, ${q.question}, ${q.category || 'technical'}::question_category, ${q.difficulty || 'intermediate'}::question_difficulty, ${q.suggestedAnswer || ''})`
+            VALUES (${resumeId}::uuid, ${userId}, ${q.jobRole || 'General'}, ${q.question}, ${cat}::question_category, ${diff}::question_difficulty, ${q.suggestedAnswer || ''})`
         );
       }
     }
