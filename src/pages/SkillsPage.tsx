@@ -165,18 +165,23 @@ export const SkillsPage: React.FC = () => {
                                 Learning Resources
                               </p>
                               <div className="flex flex-wrap gap-2">
-                                {resources.map((resource: string, i: number) => (
-                                  <a
-                                    key={i}
-                                    href={resource}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                                  >
-                                    <ExternalLink className="w-3 h-3" />
-                                    Resource {i + 1}
-                                  </a>
-                                ))}
+                                {resources.map((resource: string, i: number) => {
+                                  const isCoursera = resource.includes('coursera.org');
+                                  const isYouTube = resource.includes('youtube.com') || resource.includes('youtu.be');
+                                  const label = isCoursera ? 'Coursera' : isYouTube ? 'YouTube' : `Resource ${i + 1}`;
+                                  return (
+                                    <a
+                                      key={i}
+                                      href={resource}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline bg-primary/5 px-2.5 py-1 rounded-lg"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                      {label}
+                                    </a>
+                                  );
+                                })}
                               </div>
                             </div>
                           ) : null;
